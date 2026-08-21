@@ -48,16 +48,106 @@ This matters for three reasons:
 | Detailed information | Botanical + family + names in six languages, habitat, morphology, parts used, Ayurvedic profile, classical preparations, cultivation calendar, precautions |
 | Multimedia | Four botanical plates per species (habit, leaf study, inflorescence, medicinal part), four audio-description tracks, animated 3D specimen |
 | Search & filter | Weighted fuzzy search over names, symptoms and Sanskrit synonyms; facets for use, plant type, part used, region, AYUSH system and conservation status |
-| Virtual tours | Six themed walks that fly the camera bed to bed with narration |
+| Virtual tours | Six themed walks that fly the camera bed to bed with narration, in a letterboxed story mode |
 | User interaction | Bookmarks, autosaving study notes, progress tracking, native share sheet, social links, downloadable study sheet |
+| Data visualisation | An Atlas that reads the whole compendium as charts, and a comparison bench for putting herbs side by side |
+
+### The Grand Walk
+
+The main way through the garden. It opens outside a **walled** garden: a boundary wall
+runs the whole perimeter and the gate's two leaves are shut, so there is nothing to see
+but the entrance. Pressing **Open the gate** swings both leaves inward on their hinges,
+and the camera glides under the lintel into a garden you have not seen yet.
+
+**Every stop then happens in that same scene.** The camera flies to each plant where it
+actually stands and frames it close, its medicinal parts labelled with hotspots on the
+living specimen — no studio, no second copy of the model, and the beds and plaza stay
+visible behind. Everything the compendium holds opens around the edges of the frame at
+the same time:
+
+| Where | What is on it |
+| --- | --- |
+| Left | Habit, family and conservation status; the full entry prose; grow difficulty, systems and range; the names in six languages; how to recognise it in the field |
+| Centre | The living specimen, framed close, parts labelled in place — still draggable |
+| Right | The rasa hexagon, the virya scale, the doshic effect, the medicinal part, guna, and the complaints it is filed under |
+| Below | A dossier: what it treats · how it is given · how to grow it · cautions · the four botanical plates · worth knowing · your own notes |
+
+The dossier expands to half the screen for proper reading, and notes save to the device
+as you type. **There is deliberately no link out to a flat page** — everything the plant
+entry carries is readable here, inside the garden.
+
+**Every panel has its own Listen button**, and "Walk it for me" reads each plant aloud and
+moves on by itself when the reading is done — the whole thing runs hands-free. Arrow keys
+change stop, space plays and pauses, escape leaves, dragging still looks around mid-stop,
+and clicking any other plant in the scene jumps the walk to it. The URL tracks the current
+plant, so a walk can be resumed or linked to from the middle.
+
+The wall is raised only for the walk: the bed views used by the garden and the themed tours
+stand further out than the wall does, and would be looking at masonry instead of planting.
+
+### Showing a newcomer around
+
+Three more ways in, all replayable from the **?** menu in the header:
+
+- **A cinematic opening.** Titles play over the live garden while the camera flies a
+  scripted route through it. Skipping leaves you exactly where the camera stopped —
+  there is no separate splash screen to escape from.
+- **A guided walkthrough.** Nine spotlit stops that cross the whole site: beds,
+  daylight, search, facets, the Ayurvedic fingerprint, the 3D specimen, the Atlas,
+  tours, and where progress is saved. Steps name the page and the element they point
+  at, and fall back to a centred card if a viewport hides the target.
+- **Presentation mode** (press **P**). A hands-free reel of eleven scenes that drives
+  the real app — real routes, real camera moves, no screenshots — and narrates itself.
+  Space pauses, arrows scrub, escape leaves. Built for talking to a room.
+
+### Reading a plant as shapes
+
+Ayurvedic pharmacology is usually printed as a list of five properties. Every plant
+page draws it instead:
+
+- a **shad-rasa hexagon** for the six tastes, with the dominant one weighted;
+- a **virya scale** from shita to ushna, nudged by the gunas, so a sharp heating herb
+  sits further along than a merely warm one;
+- **vipaka**, the taste that survives digestion;
+- a centre-anchored **doshic bar** per dosha — pacifies grows one way, aggravates the other.
+
+None of this is a second copy of the data. `src/lib/ayurveda.ts` parses the same prose
+the compendium already carries ("Pacifies Kapha and Vata; may aggravate Pitta"), so the
+charts cannot drift away from the text beside them.
+
+### The Atlas
+
+One route that reads all twenty-five species at once: a schematic map of where they grow,
+a force-laid graph of every plant against every complaint it treats, the distribution of
+tastes and potencies, and a conservation ladder that marks which at-risk plants are
+harvested for root, bark or heartwood — the parts that do not grow back. Every number on
+the page is derived from the plant data at load time, so it cannot fall out of step with
+the collection.
+
+### The comparison bench
+
+Two or three plants on one set of axes: taste hexagons overlaid, potencies on a shared
+scale, doshic effects in a grid, and the properties lined up row by row. The bench state
+lives in the URL, so a comparison is a link.
 
 ### Beyond the brief
 
+- **A day-night cycle.** One clock value from before dawn to night drives the sky gradient,
+  fog, sun colour and angle, ambient bounce and tone-mapping exposure. After sunset the
+  fireflies come out. `src/three/daylight.ts` holds the whole table, so the sky and the
+  shadows can never disagree about what time it is. The theme toggle moves the sun too —
+  daylight opens the garden in late afternoon, dark opens it at dusk — so the chrome and
+  the scene always agree; the slider overrides both.
+- **A horizon.** The garden sits under a gradient dome and on open country that recedes
+  into haze, rather than floating in a flat field of background colour. The lawn dissolves
+  by alpha into that country, so there is no plate edge to catch the eye at any hour.
 - **Labelled part hotspots** on the 3D model — tap "Bark" and see where on the tree it comes from.
 - **A real scale bar**, so a 14 cm creeper and a 3 m tree are not silently drawn the same size.
 - **Conservation framing** — one whole tour is about why guggulu is Critically Endangered,
   because the medicinal part is the part that kills the plant.
 - **Offline-first**: no network calls after load. Narration uses the browser's own speech synthesis.
+- **Everything is a link**: a bed, a plant, a plant's Ayurvedic tab, a region filter, a
+  three-way comparison — all addressable, all survive a hard refresh.
 
 ---
 
@@ -85,6 +175,10 @@ client-side routes such as `/plant/tulsi` survive a hard refresh.
 - **Tailwind CSS v4** with a semantic token layer for light/dark
 - **Zustand** (persisted to `localStorage`) for bookmarks, notes and settings
 - **React Router 7**
+- **Motion** for page transitions, the opening, and the chart animations
+
+Every chart is hand-drawn SVG. There is no charting library in the dependency list —
+a hexagon, a spring layout and a stacked bar are less code than the adapter would be.
 
 No backend. Everything a visitor saves lives on their own device.
 
@@ -109,7 +203,15 @@ src/
     plate.ts       the same leaf maths, projected to SVG specimen plates
     search.ts      weighted index + fuzzy fallback
     speech.ts      audio descriptions via SpeechSynthesis
-  routes/          Garden · Explore · PlantPage · Tours · TourPage · MyGarden
+  lib/ayurveda.ts  rasa, virya, vipaka and dosha parsed out of the compendium's prose
+  three/daylight.ts  one clock value → sky, sun, fog, ambient, exposure, fireflies
+  components/
+    GardenIntro.tsx     the cinematic opening, played over the live scene
+    Walkthrough.tsx     cross-route spotlight tour, driven by `data-tour` handles
+    PresentationMode.tsx  the hands-free demo reel
+    viz/                radar, fingerprint, map, constellation, conservation ladder
+  three/GardenGate.tsx  the torana you come in through
+  routes/          Garden · Walk · Explore · Atlas · Compare · PlantPage · Tours · TourPage · MyGarden
 ```
 
 ### Performance notes
@@ -143,6 +245,19 @@ dangerous when self-prescribed. Consult a registered AYUSH practitioner.
 
 ---
 
+## Keyboard
+
+| Key | Does |
+| --- | --- |
+| `⌘K` / `/` | Search |
+| `space` | Start or pause the Grand Walk |
+| `P` | Presentation mode |
+| `space` | Pause the reel, or play/pause a tour |
+| `← →` | Move between scenes, tour stops or walkthrough steps |
+| `esc` | Leave whatever is running |
+
+---
+
 ## Known limits
 
 - Speech narration depends on the browser's installed voices; quality varies, and it is
@@ -151,3 +266,6 @@ dangerous when self-prescribed. Consult a registered AYUSH practitioner.
   a stylised plant that is *correct* teaches better than a pretty one that is not.
 - Fifteen of the twenty-five species have flowers modelled; the rest flower rarely in
   cultivation and are shown vegetative, which is how you would actually find them.
+- The India in the Atlas is a **schematic**, drawn by hand to place the climatic regions
+  in roughly the right relationship to each other. It is labelled as such on the page. It
+  is not survey data and should not be read as a statement about boundaries.

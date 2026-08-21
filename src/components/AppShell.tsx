@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import { useGarden } from '../store/useGarden'
 import { Icon, type IconName } from './ui/Icon'
 import { cx } from './ui/primitives'
 import { CommandPalette } from './CommandPalette'
+import { Walkthrough } from './Walkthrough'
+import { PresentationMode } from './PresentationMode'
 
 const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Garden', icon: 'map' },
   { to: '/explore', label: 'Explore', icon: 'grid' },
+  { to: '/atlas', label: 'Atlas', icon: 'layers' },
   { to: '/tours', label: 'Tours', icon: 'route' },
   { to: '/my-garden', label: 'My Garden', icon: 'bookmark' },
 ]
@@ -29,12 +33,115 @@ function Wordmark() {
   )
 }
 
+/* ------------------------------------------------------------------ *
+ * The help menu gathers everything that shows a newcomer around:
+ * the coach-mark walkthrough, the cinematic opening, and the
+ * hands-free presentation reel.
+ * ------------------------------------------------------------------ */
+
+function HelpMenu({
+  onWalkthrough,
+  onPresent,
+  onReplayIntro,
+}: {
+  onWalkthrough: () => void
+  onPresent: () => void
+  onReplayIntro: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  const items: { icon: IconName; label: string; hint: string; kbd?: string; run: () => void }[] = [
+    {
+      icon: 'cursor',
+      label: 'Guided walkthrough',
+      hint: 'Nine stops across the whole site',
+      run: onWalkthrough,
+    },
+    { icon: 'play', label: 'Presentation mode', hint: 'Hands-free narrated reel', kbd: 'P', run: onPresent },
+    { icon: 'sparkle', label: 'Replay the opening', hint: 'The cinematic garden intro', run: onReplayIntro },
+  ]
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="How to use this site"
+        aria-expanded={open}
+        data-tour="help"
+        className={cx(
+          'grid size-9 place-items-center rounded-full border border-line bg-raised transition-colors',
+          open ? 'text-accent' : 'text-ink-soft hover:text-ink',
+        )}
+      >
+        <Icon name="info" size={16} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-3xl border border-line bg-raised shadow-[var(--shadow-lift)]"
+          >
+            <p className="border-b border-line px-4 py-2.5 text-[0.64rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
+              Show me around
+            </p>
+            {items.map((item) => (
+              <button
+                key={item.label}
+                onClick={() => {
+                  setOpen(false)
+                  item.run()
+                }}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-sunken"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
+                  <Icon name={item.icon} size={15} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[0.86rem] font-medium">{item.label}</span>
+                  <span className="block text-[0.7rem] text-ink-faint">{item.hint}</span>
+                </span>
+                {item.kbd && (
+                  <kbd className="rounded border border-line px-1.5 py-px font-mono text-[0.62rem] text-ink-faint">
+                    {item.kbd}
+                  </kbd>
+                )}
+              </button>
+            ))}
+            <div className="border-t border-line bg-sunken px-4 py-2.5 text-[0.68rem] text-ink-faint">
+              <span className="font-mono">⌘K</span> search · <span className="font-mono">P</span> present ·{' '}
+              <span className="font-mono">esc</span> exit
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const theme = useGarden((s) => s.theme)
   const toggleTheme = useGarden((s) => s.toggleTheme)
   const bookmarks = useGarden((s) => s.bookmarks.length)
+  const setIntroSeen = useGarden((s) => s.setIntroSeen)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false)
+  const [presenting, setPresenting] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
   const immersive = location.pathname === '/' || location.pathname.startsWith('/tours/')
 
   useEffect(() => {
@@ -44,18 +151,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const typing = /^(input|textarea)$/i.test((e.target as HTMLElement)?.tagName ?? '')
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setPaletteOpen((v) => !v)
       }
-      if (e.key === '/' && !/^(input|textarea)$/i.test((e.target as HTMLElement)?.tagName ?? '')) {
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key === '/') {
         e.preventDefault()
         setPaletteOpen(true)
+      }
+      // The demo key. Deliberately a single press, so it works from a clicker.
+      if (e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        setPresenting((v) => !v)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  const startWalkthrough = () => {
+    setPresenting(false)
+    setWalkthroughOpen(true)
+  }
+
+  // The cinematic opening offers "Show me around"; it lives inside the
+  // garden route, so it asks for the walkthrough by event rather than
+  // by threading a callback down through the scene.
+  useEffect(() => {
+    const start = () => {
+      setPresenting(false)
+      setWalkthroughOpen(true)
+    }
+    window.addEventListener('vanaspati:walkthrough', start)
+    return () => window.removeEventListener('vanaspati:walkthrough', start)
+  }, [])
+
+  const replayIntro = () => {
+    setPresenting(false)
+    setWalkthroughOpen(false)
+    setIntroSeen(false)
+    navigate('/')
+  }
 
   return (
     <div className={cx('min-h-dvh', immersive ? 'h-dvh overflow-hidden' : '')}>
@@ -63,7 +201,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex h-16 max-w-[92rem] items-center gap-4 px-4 sm:px-6">
           <Wordmark />
 
-          <nav className="ml-6 hidden items-center gap-1 md:flex">
+          <nav className="ml-6 hidden items-center gap-1 md:flex" data-tour="nav">
             {NAV.map((item) => (
               <NavLink
                 key={item.to}
@@ -79,7 +217,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {({ isActive }) => (
                   <>
                     {isActive && (
-                      <span className="absolute inset-0 -z-10 rounded-full bg-sunken" aria-hidden="true" />
+                      <motion.span
+                        layoutId="nav-pill"
+                        className="absolute inset-0 -z-10 rounded-full bg-sunken"
+                        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                        aria-hidden="true"
+                      />
                     )}
                     {item.label}
                     {item.to === '/my-garden' && bookmarks > 0 && (
@@ -96,6 +239,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setPaletteOpen(true)}
+              data-tour="search"
               className="flex h-9 items-center gap-2 rounded-full border border-line bg-raised px-3 text-[0.8rem] text-ink-faint transition-colors hover:border-line-strong hover:text-ink-soft"
             >
               <Icon name="search" size={15} />
@@ -104,6 +248,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 ⌘K
               </kbd>
             </button>
+
+            <HelpMenu onWalkthrough={startWalkthrough} onPresent={() => setPresenting(true)} onReplayIntro={replayIntro} />
+
             <button
               onClick={toggleTheme}
               aria-label={theme === 'dark' ? 'Switch to daylight' : 'Switch to evening'}
@@ -127,7 +274,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               end={item.to === '/'}
               className={({ isActive }) =>
                 cx(
-                  'flex flex-1 flex-col items-center gap-1 py-2.5 text-[0.65rem] font-medium transition-colors',
+                  'flex flex-1 flex-col items-center gap-1 py-2.5 text-[0.6rem] font-medium transition-colors',
                   isActive ? 'text-accent' : 'text-ink-faint',
                 )
               }
@@ -140,6 +287,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <Walkthrough open={walkthroughOpen} onClose={() => setWalkthroughOpen(false)} />
+      <PresentationMode open={presenting} onClose={() => setPresenting(false)} />
     </div>
   )
 }

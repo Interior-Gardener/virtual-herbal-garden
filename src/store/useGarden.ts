@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { AFTERNOON, EVENING } from '../three/daylight'
 
 export interface PlantNote {
   plantId: string
@@ -19,6 +20,12 @@ interface GardenState {
   quality: Quality
   narration: boolean
   reducedMotion: boolean
+  /** The cinematic opening has played at least once. */
+  introSeen: boolean
+  /** The coach-mark walkthrough has been completed or dismissed. */
+  walkthroughSeen: boolean
+  /** 0 = dawn, 0.5 = noon, 1 = night. Drives the garden's sky and lights. */
+  timeOfDay: number
 
   toggleBookmark: (plantId: string) => void
   isBookmarked: (plantId: string) => boolean
@@ -31,6 +38,9 @@ interface GardenState {
   setQuality: (quality: Quality) => void
   setNarration: (on: boolean) => void
   setReducedMotion: (on: boolean) => void
+  setIntroSeen: (seen: boolean) => void
+  setWalkthroughSeen: (seen: boolean) => void
+  setTimeOfDay: (value: number) => void
   resetProgress: () => void
 }
 
@@ -48,6 +58,9 @@ export const useGarden = create<GardenState>()(
       quality: 'auto',
       narration: true,
       reducedMotion: false,
+      introSeen: false,
+      walkthroughSeen: false,
+      timeOfDay: prefersDark ? EVENING : AFTERNOON,
 
       toggleBookmark: (plantId) =>
         set((s) => ({
@@ -84,12 +97,23 @@ export const useGarden = create<GardenState>()(
             : [...s.completedTours, tourId],
         })),
 
-      setTheme: (theme) => set({ theme }),
-      toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+      // Switching the theme also moves the sun, so the chrome and the garden
+      // never disagree about what time it is. The daylight slider still wins
+      // afterwards — this only sets the hour the theme implies.
+      setTheme: (theme) => set({ theme, timeOfDay: theme === 'dark' ? EVENING : AFTERNOON }),
+      toggleTheme: () =>
+        set((s) => {
+          const theme = s.theme === 'dark' ? 'light' : 'dark'
+          return { theme, timeOfDay: theme === 'dark' ? EVENING : AFTERNOON }
+        }),
       setQuality: (quality) => set({ quality }),
       setNarration: (narration) => set({ narration }),
       setReducedMotion: (reducedMotion) => set({ reducedMotion }),
-      resetProgress: () => set({ bookmarks: [], notes: {}, visited: [], completedTours: [] }),
+      setIntroSeen: (introSeen) => set({ introSeen }),
+      setWalkthroughSeen: (walkthroughSeen) => set({ walkthroughSeen }),
+      setTimeOfDay: (timeOfDay) => set({ timeOfDay: Math.max(0, Math.min(1, timeOfDay)) }),
+      resetProgress: () =>
+        set({ bookmarks: [], notes: {}, visited: [], completedTours: [], introSeen: false, walkthroughSeen: false }),
     }),
     {
       name: 'vanaspati.garden.v1',
@@ -102,6 +126,9 @@ export const useGarden = create<GardenState>()(
         quality: s.quality,
         narration: s.narration,
         reducedMotion: s.reducedMotion,
+        introSeen: s.introSeen,
+        walkthroughSeen: s.walkthroughSeen,
+        timeOfDay: s.timeOfDay,
       }),
     },
   ),

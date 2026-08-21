@@ -1,7 +1,9 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import { AppShell } from './components/AppShell'
 import { Icon } from './components/ui/Icon'
+import { useCalmMotion } from './components/motion/Reveal'
 
 // The 3D routes carry three.js; keep them out of the initial bundle.
 const Garden = lazy(() => import('./routes/Garden'))
@@ -10,6 +12,8 @@ const PlantPage = lazy(() => import('./routes/PlantPage'))
 const Explore = lazy(() => import('./routes/Explore'))
 const Tours = lazy(() => import('./routes/Tours'))
 const MyGarden = lazy(() => import('./routes/MyGarden'))
+const Atlas = lazy(() => import('./routes/Atlas'))
+const Compare = lazy(() => import('./routes/Compare'))
 
 function RouteFallback() {
   return (
@@ -20,14 +24,34 @@ function RouteFallback() {
   )
 }
 
-export default function App() {
+/* The 3D routes own the full viewport and run their own camera moves, so
+ * a crossfade on top of them only muddies the picture. Everything else
+ * gets a short rise-and-fade between pages. */
+function isImmersive(pathname: string) {
+  return pathname === '/' || pathname.startsWith('/tours/')
+}
+
+function AnimatedRoutes() {
+  const location = useLocation()
+  const calm = useCalmMotion()
+  const immersive = isImmersive(location.pathname)
+
   return (
-    <BrowserRouter>
-      <AppShell>
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={immersive ? 'immersive' : location.pathname}
+        className={immersive ? 'h-full' : undefined}
+        initial={calm || immersive ? false : { opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={calm || immersive ? undefined : { opacity: 0, y: -8 }}
+        transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+      >
         <Suspense fallback={<RouteFallback />}>
-          <Routes>
+          <Routes location={location}>
             <Route path="/" element={<Garden />} />
             <Route path="/explore" element={<Explore />} />
+            <Route path="/atlas" element={<Atlas />} />
+            <Route path="/compare" element={<Compare />} />
             <Route path="/plant/:id" element={<PlantPage />} />
             <Route path="/tours" element={<Tours />} />
             <Route path="/tours/:id" element={<TourPage />} />
@@ -35,6 +59,16 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppShell>
+        <AnimatedRoutes />
       </AppShell>
     </BrowserRouter>
   )

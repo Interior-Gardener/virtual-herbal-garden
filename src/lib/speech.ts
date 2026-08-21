@@ -25,6 +25,46 @@ function chunkText(text: string): string[] {
   return chunks
 }
 
+/**
+ * Chrome reports an empty voice list until it has finished loading them,
+ * which on a cold page lands a little after the page becomes usable. An
+ * utterance queued in that window is dropped without a sound — which is why
+ * it is reliably the *first* narration of a session that goes missing and
+ * every one after it that works. Wait for the list, then give up and let the
+ * browser pick rather than leaving the visitor in silence.
+ */
+function whenVoicesReady(run: () => void) {
+  if (window.speechSynthesis.getVoices().length > 0) {
+    run()
+    return
+  }
+  let settled = false
+  const go = () => {
+    if (settled) return
+    settled = true
+    window.speechSynthesis.removeEventListener('voiceschanged', go)
+    window.clearTimeout(timer)
+    run()
+  }
+  const timer = window.setTimeout(go, 1200)
+  window.speechSynthesis.addEventListener('voiceschanged', go)
+}
+
+/**
+ * Cancel, and cancel again a moment later.
+ *
+ * Chrome will sometimes start an utterance that was already queued when the
+ * cancel arrived, which is how a voice ends up talking over a page the
+ * visitor has already left. The second pass sweeps those up. It is guarded on
+ * `wanted`, so it can never cut off something new that began in between.
+ */
+function hardCancel(wanted: { current: string | null }) {
+  window.speechSynthesis.cancel()
+  window.setTimeout(() => {
+    if (wanted.current === null) window.speechSynthesis.cancel()
+  }, 80)
+}
+
 function pickVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
   // Prefer an Indian English voice — the vocabulary here is largely Sanskrit.
   return (
@@ -60,15 +100,20 @@ export function useNarrator(): Narrator {
     window.speechSynthesis.addEventListener('voiceschanged', load)
     return () => {
       window.speechSynthesis.removeEventListener('voiceschanged', load)
-      window.speechSynthesis.cancel()
+      // Clearing this is what stops an utterance that is still waiting on the
+      // voice list from starting up after the page it belonged to has gone.
+      currentText.current = null
+      hardCancel(currentText)
     }
   }, [supported])
 
   const stop = useCallback(() => {
     if (!supported) return
-    window.speechSynthesis.cancel()
+    // Cleared first: it is what tells both the delayed sweep and any
+    // utterance still waiting on the voice list that nobody wants this.
     currentText.current = null
     setSpeaking(false)
+    hardCancel(currentText)
   }, [supported])
 
   const speak = useCallback(
@@ -76,25 +121,37 @@ export function useNarrator(): Narrator {
       if (!supported || !text.trim()) return
       window.speechSynthesis.cancel()
       currentText.current = text
-      const voice = pickVoice(voices.current)
-      const chunks = chunkText(text)
-
-      chunks.forEach((chunk, i) => {
-        const utterance = new SpeechSynthesisUtterance(chunk)
-        if (voice) utterance.voice = voice
-        utterance.rate = 0.96
-        utterance.pitch = 1
-        utterance.lang = voice?.lang ?? 'en-IN'
-        if (i === chunks.length - 1) {
-          utterance.onend = () => {
-            currentText.current = null
-            setSpeaking(false)
-          }
-          utterance.onerror = utterance.onend
-        }
-        window.speechSynthesis.speak(utterance)
-      })
       setSpeaking(true)
+
+      whenVoicesReady(() => {
+        // Something else may have been asked for, or the page left, while we
+        // waited. currentText is the record of what is wanted now.
+        if (currentText.current !== text) return
+        voices.current = window.speechSynthesis.getVoices()
+        const voice = pickVoice(voices.current)
+        const chunks = chunkText(text)
+
+        chunks.forEach((chunk, i) => {
+          const utterance = new SpeechSynthesisUtterance(chunk)
+          /* Only name a language we have a voice for. Asking for en-IN on a
+           * machine with no Indian English installed is another way to get
+           * silence, and the fallback voice already carries its own lang. */
+          if (voice) {
+            utterance.voice = voice
+            utterance.lang = voice.lang
+          }
+          utterance.rate = 0.96
+          utterance.pitch = 1
+          if (i === chunks.length - 1) {
+            utterance.onend = () => {
+              currentText.current = null
+              setSpeaking(false)
+            }
+            utterance.onerror = utterance.onend
+          }
+          window.speechSynthesis.speak(utterance)
+        })
+      })
     },
     [supported],
   )

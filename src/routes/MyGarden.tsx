@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { gardenBeds, getPlant, plants } from '../data/plants'
 import { tours } from '../data/tours'
 import { PlantCard } from '../components/PlantCard'
@@ -58,7 +58,7 @@ export default function MyGarden() {
           Saved plants, study notes and progress — kept on this device, no account required.
         </p>
 
-        <div className="mt-7 grid gap-3 sm:grid-cols-4">
+        <div className="mt-7 grid gap-3 sm:grid-cols-4" data-tour="progress">
           <Stat label="Plants met" value={`${seenCount}/${plants.length}`} icon="leaf" progress={progress} />
           <Stat label="Saved" value={String(saved.length)} icon="bookmark" />
           <Stat label="Notes written" value={String(noteEntries.length)} icon="note" />
@@ -275,8 +275,9 @@ const QUALITY_OPTIONS: { value: Quality; label: string; hint: string }[] = [
 ]
 
 function SettingsTab() {
-  const { quality, setQuality, narration, setNarration, reducedMotion, setReducedMotion, resetProgress } =
+  const { quality, setQuality, narration, setNarration, reducedMotion, setReducedMotion, resetProgress, setIntroSeen } =
     useGarden()
+  const navigate = useNavigate()
   const [confirming, setConfirming] = useState(false)
 
   return (
@@ -305,6 +306,36 @@ function SettingsTab() {
               <span className="mt-0.5 block text-[0.78rem] text-ink-faint">{option.hint}</span>
             </button>
           ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-display text-lg font-semibold">Show me around again</h2>
+        <p className="mt-1 text-[0.85rem] text-ink-soft">
+          The guided walkthrough and the cinematic opening can both be replayed at any time — useful when you are
+          demonstrating the garden to somebody else.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            icon="cursor"
+            onClick={() => window.dispatchEvent(new CustomEvent('vanaspati:walkthrough'))}
+          >
+            Replay the walkthrough
+          </Button>
+          <Button
+            variant="secondary"
+            icon="sparkle"
+            onClick={() => {
+              setIntroSeen(false)
+              navigate('/')
+            }}
+          >
+            Replay the opening
+          </Button>
+          <Button variant="ghost" icon="play" onClick={() => navigate('/')} title="Then press P">
+            Presentation mode is P
+          </Button>
         </div>
       </section>
 

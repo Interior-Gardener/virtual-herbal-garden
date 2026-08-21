@@ -39,6 +39,7 @@ export default function Explore() {
   const [filters, setFilters] = useState<Filters>(() => ({
     ...emptyFilters,
     therapeutic: params.get('treats') ? [params.get('treats') as never] : [],
+    regions: params.get('region') ? [params.get('region') as never] : [],
   }))
   const [sort, setSort] = useState<SortMode>('relevance')
   const [layout, setLayout] = useState<'grid' | 'row'>('grid')
@@ -50,8 +51,9 @@ export default function Explore() {
     const next = new URLSearchParams()
     if (query.trim()) next.set('q', query.trim())
     if (filters.therapeutic.length === 1) next.set('treats', filters.therapeutic[0])
+    if (filters.regions.length === 1) next.set('region', filters.regions[0])
     setParams(next, { replace: true })
-  }, [query, filters.therapeutic, setParams])
+  }, [query, filters.therapeutic, filters.regions, setParams])
 
   const results = useMemo(
     () => searchPlants(plants, { query, filters, sort, bookmarks }),
@@ -145,6 +147,7 @@ export default function Explore() {
             variant={activeCount ? 'primary' : 'secondary'}
             icon="filter"
             className="lg:hidden"
+            data-tour="facets"
             onClick={() => setPanelOpen(true)}
           >
             Filters{activeCount ? ` · ${activeCount}` : ''}
@@ -207,7 +210,12 @@ export default function Explore() {
 
       <div className="grid gap-8 lg:grid-cols-[16rem_1fr]">
         <aside className="hidden lg:block">
-          <div className="sticky top-40 max-h-[calc(100dvh-12rem)] overflow-y-auto pr-2 pb-8">{filterPanel}</div>
+          <div
+            className="sticky top-40 max-h-[calc(100dvh-12rem)] overflow-y-auto pr-2 pb-8"
+            data-tour="facets"
+          >
+            {filterPanel}
+          </div>
         </aside>
 
         <div className="min-w-0 pb-16">

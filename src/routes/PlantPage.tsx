@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { bedByPlantId, getPlant, plants } from '../data/plants'
 import { tours } from '../data/tours'
 import { PlantViewer } from '../three/PlantViewer'
 import { BotanicalPlate } from '../components/BotanicalPlate'
 import { Icon, type IconName } from '../components/ui/Icon'
+import { AyurvedicFingerprint } from '../components/viz/AyurvedicFingerprint'
 import { Badge, Button, DataRow, cx } from '../components/ui/primitives'
 import { useGarden } from '../store/useGarden'
 import { useNarrator } from '../lib/speech'
@@ -38,8 +39,19 @@ export default function PlantPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const plant = getPlant(id)
-  const [tab, setTab] = useState<TabId>('overview')
+  const [params, setParams] = useSearchParams()
   const [toast, setToast] = useState<string | null>(null)
+
+  // The open tab lives in the URL, so a link can point at a plant's
+  // Ayurvedic properties rather than just at the plant.
+  const requested = params.get('tab') as TabId | null
+  const tab: TabId = TABS.some((t) => t.id === requested) ? (requested as TabId) : 'overview'
+  const setTab = (next: TabId) => {
+    const url = new URLSearchParams(params)
+    if (next === 'overview') url.delete('tab')
+    else url.set('tab', next)
+    setParams(url, { replace: true })
+  }
 
   const bookmarked = useGarden((s) => (id ? s.bookmarks.includes(id) : false))
   const toggleBookmark = useGarden((s) => s.toggleBookmark)
@@ -49,11 +61,17 @@ export default function PlantPage() {
 
   useEffect(() => {
     if (plant) markVisited(plant.id)
-    setTab('overview')
     window.scrollTo({ top: 0 })
   }, [plant, markVisited])
 
-  useEffect(() => () => narrator.stop(), [narrator])
+  /* Hush the reading when the page changes underneath it. Keyed on the plant,
+   * not on the narrator: `useNarrator` returns a fresh object every render, so
+   * depending on it ran this cleanup on every render and cancelled the very
+   * speech it was starting. Keying on the id also covers moving from one plant
+   * to the next, which reuses this component — nothing unmounts, so without
+   * this Tulsi carries on being read out over Neem's page. */
+  const { stop: hushNarration } = narrator
+  useEffect(() => () => hushNarration(), [plant?.id, hushNarration])
 
   useEffect(() => {
     if (!toast) return
@@ -135,10 +153,12 @@ export default function PlantPage() {
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-12">
         {/* ---------------- 3D specimen ---------------- */}
         <div className="lg:sticky lg:top-24 lg:self-start">
-          <PlantViewer
-            plant={plant}
-            className="aspect-square w-full rounded-4xl border border-line bg-sunken sm:aspect-[4/3] lg:aspect-square"
-          />
+          <div data-tour="specimen">
+            <PlantViewer
+              plant={plant}
+              className="aspect-square w-full rounded-4xl border border-line bg-sunken sm:aspect-[4/3] lg:aspect-square"
+            />
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button
               variant={bookmarked ? 'primary' : 'secondary'}
@@ -387,13 +407,6 @@ function UsesTab({ plant }: { plant: Plant }) {
 
 function AyurvedaTab({ plant }: { plant: Plant }) {
   const a = plant.ayurvedic
-  const pillars: { label: string; value: string; hint: string }[] = [
-    { label: 'Rasa', value: a.rasa.join(', '), hint: 'Taste — the first thing the body registers' },
-    { label: 'Guna', value: a.guna.join(', '), hint: 'Physical qualities such as heavy, light, dry, oily' },
-    { label: 'Virya', value: a.virya, hint: 'Potency — whether it heats or cools' },
-    { label: 'Vipaka', value: a.vipaka, hint: 'The taste that remains after digestion' },
-    { label: 'Dosha', value: a.dosha, hint: 'Which of the three humours it moves' },
-  ]
 
   return (
     <div className="space-y-6">
@@ -403,20 +416,42 @@ function AyurvedaTab({ plant }: { plant: Plant }) {
         differently to two people.
       </p>
 
+      <div data-tour="fingerprint">
+        <AyurvedicFingerprint plant={plant} />
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
-        {pillars.map((pillar) => (
-          <div key={pillar.label} className="rounded-2xl border border-line bg-raised p-4">
-            <p className="font-display text-sm font-semibold tracking-wide" style={{ color: plant.accent }}>
-              {pillar.label}
-            </p>
-            <p className="mt-1.5 text-[0.95rem] leading-snug">{pillar.value}</p>
-            <p className="mt-2 text-[0.75rem] text-ink-faint">{pillar.hint}</p>
-          </div>
-        ))}
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <p className="font-display text-sm font-semibold tracking-wide" style={{ color: plant.accent }}>
+            Guna
+          </p>
+          <p className="mt-1.5 text-[0.95rem] leading-snug">{a.guna.join(', ')}</p>
+          <p className="mt-2 text-[0.75rem] text-ink-faint">
+            Physical qualities such as heavy, light, dry or oily — they decide how the potency lands.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <p className="font-display text-sm font-semibold tracking-wide" style={{ color: plant.accent }}>
+            Rasa, in full
+          </p>
+          <p className="mt-1.5 text-[0.95rem] leading-snug">{a.rasa.join(', ')}</p>
+          <p className="mt-2 text-[0.75rem] text-ink-faint">
+            The order matters: the first taste listed is the dominant one.
+          </p>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-line bg-sunken p-5">
-        <p className="text-[0.72rem] font-semibold tracking-[0.1em] text-ink-faint uppercase">Therapeutic areas</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[0.72rem] font-semibold tracking-[0.1em] text-ink-faint uppercase">Therapeutic areas</p>
+          <Link
+            to={`/compare?ids=${plant.id}`}
+            className="inline-flex items-center gap-1.5 text-[0.76rem] font-medium text-accent hover:underline"
+          >
+            <Icon name="layers" size={14} />
+            Compare with another plant
+          </Link>
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {plant.therapeutic.map((tag) => (
             <Link

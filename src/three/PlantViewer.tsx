@@ -27,7 +27,7 @@ function WindClock({ strength }: { strength: number }) {
  * organ; the bearing is spread by index so four labels never stack up on
  * the same side of the specimen.
  */
-function hotspotAnchor(
+export function hotspotAnchor(
   part: string,
   index: number,
   height: number,
@@ -62,7 +62,7 @@ function hotspotAnchor(
   return [Math.cos(bearing) * radius * reach, height * level, Math.sin(bearing) * radius * reach]
 }
 
-function Hotspot({
+export function Hotspot({
   position,
   label,
   accent,

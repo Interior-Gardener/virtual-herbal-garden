@@ -14,6 +14,8 @@ import type { Detail } from './procedural/plant'
 import { hashSeed, makeRng } from './procedural/rng'
 import { useDetail, dprFor } from '../hooks/useDetail'
 import { useGarden } from '../store/useGarden'
+import { daylightAt } from './daylight'
+import { WalkControls } from './WalkControls'
 
 /* ------------------------------------------------------------------ *
  * The garden: six themed beds arranged around a central plaza, every
@@ -77,9 +79,15 @@ export interface CameraGoal {
   lift?: number
   /** Compass bearing in radians; undefined keeps the current bearing. */
   bearing?: number
+  /** Multiplies the approach rate. Below 1 gives a slow cinematic glide. */
+  speed?: number
 }
 
-export const OVERVIEW: CameraGoal = { target: [0, 0.9, 0], distance: 23, lift: 0.38, bearing: Math.PI * 0.5 }
+/* The eye sits low enough to put a band of sky above the horizon. At the
+ * old lift of 0.38 the top of the frame landed within a fraction of a
+ * degree of the horizon line, which is why the sky read as one flat wash
+ * however the gradient was tuned. */
+export const OVERVIEW: CameraGoal = { target: [0, 1.1, 0], distance: 24, lift: 0.27, bearing: Math.PI * 0.5 }
 
 function CameraRig({
   goal,
@@ -93,6 +101,7 @@ function CameraRig({
   const { camera, size } = useThree()
   const desiredTarget = useRef(new THREE.Vector3(...OVERVIEW.target))
   const flyTo = useRef<THREE.Vector3 | null>(null)
+  const approach = useRef(1)
   // A portrait viewport sees far less of the garden at a given distance.
   const aspect = size.width / Math.max(1, size.height)
   const reachScale = THREE.MathUtils.clamp(1.5 / Math.max(0.35, aspect), 1, 2.1)
@@ -112,6 +121,7 @@ function CameraRig({
       goal.target[2] + Math.sin(bearing) * reach,
     )
     // The frame loop eases toward this rather than cutting to it.
+    approach.current = goal.speed ?? 1
     flyTo.current = eye
   }, [goal, reachScale])
 
@@ -119,15 +129,17 @@ function CameraRig({
     const ctrl = controls.current
     if (!ctrl) return
     const destination = flyTo.current
+    const rate = 2.6 * approach.current
     if (destination) {
-      camera.position.x = THREE.MathUtils.damp(camera.position.x, destination.x, 2.6, delta)
-      camera.position.y = THREE.MathUtils.damp(camera.position.y, destination.y, 2.6, delta)
-      camera.position.z = THREE.MathUtils.damp(camera.position.z, destination.z, 2.6, delta)
+      camera.position.x = THREE.MathUtils.damp(camera.position.x, destination.x, rate, delta)
+      camera.position.y = THREE.MathUtils.damp(camera.position.y, destination.y, rate, delta)
+      camera.position.z = THREE.MathUtils.damp(camera.position.z, destination.z, rate, delta)
       if (camera.position.distanceToSquared(destination) < 0.004) flyTo.current = null
     }
-    ctrl.target.x = THREE.MathUtils.damp(ctrl.target.x, desiredTarget.current.x, 3, delta)
-    ctrl.target.y = THREE.MathUtils.damp(ctrl.target.y, desiredTarget.current.y, 3, delta)
-    ctrl.target.z = THREE.MathUtils.damp(ctrl.target.z, desiredTarget.current.z, 3, delta)
+    const targetRate = 3 * approach.current
+    ctrl.target.x = THREE.MathUtils.damp(ctrl.target.x, desiredTarget.current.x, targetRate, delta)
+    ctrl.target.y = THREE.MathUtils.damp(ctrl.target.y, desiredTarget.current.y, targetRate, delta)
+    ctrl.target.z = THREE.MathUtils.damp(ctrl.target.z, desiredTarget.current.z, targetRate, delta)
   })
 
   return (
@@ -149,19 +161,159 @@ function CameraRig({
 
 /* ---------------------------- scenery ---------------------------- */
 
-function Ground({ dark }: { dark: boolean }) {
+/**
+ * The sky.
+ *
+ * A flat background colour reads as empty paper rather than air, so the
+ * scene sits inside a dome shaded from a deep zenith down to a paler,
+ * warmer horizon. The dome rides with the camera, which means it can be
+ * small enough never to meet the far clip plane.
+ *
+ * The gradient is a 2×96 canvas rather than a shader: a basic material
+ * gets colour management and `toneMapped` handled for it, and 96 pixels
+ * cost nothing to repaint when the hour changes.
+ */
+function SkyDome({ zenith, horizon }: { zenith: string; horizon: string }) {
+  const mesh = useRef<THREE.Mesh>(null)
+
+  const { texture, paint } = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 2
+    canvas.height = 512
+    const ctx = canvas.getContext('2d')!
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    // The dome is a solid of revolution: one column of pixels is enough,
+    // but it needs to be a tall one — the whole visible ramp lives in a few
+    // per cent of the texture's height.
+    tex.wrapS = THREE.ClampToEdgeWrapping
+    tex.wrapT = THREE.ClampToEdgeWrapping
+
+    // Mixed here rather than with CSS color-mix(): an unparseable colour
+    // stop throws, and canvas support for CSS Color 5 is not universal.
+    const blend = new THREE.Color()
+    const paintGradient = (top: string, bottom: string) => {
+      const mid = `#${blend.set(top).lerp(new THREE.Color(bottom), 0.55).getHexString()}`
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height)
+      // The dome's equator is the horizon, at half height. The camera looks
+      // slightly down at the garden, so only a shallow band above the equator
+      // is ever on screen — the whole zenith-to-horizon ramp has to happen
+      // inside it, or the sky renders as one flat horizon colour.
+      // Half height is the horizon; one unit of height is 180° of arc. The
+      // camera only ever sees the first ~6° above the horizon, so the ramp
+      // is squeezed into roughly that: 0.478 here is about 8° up.
+      grad.addColorStop(0, top)
+      grad.addColorStop(0.462, top)
+      grad.addColorStop(0.486, mid)
+      grad.addColorStop(0.4985, bottom)
+      grad.addColorStop(1, bottom)
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      tex.needsUpdate = true
+    }
+
+    return { texture: tex, paint: paintGradient }
+  }, [])
+
+  useEffect(() => {
+    paint(zenith, horizon)
+  }, [zenith, horizon, paint])
+
+  useEffect(() => () => texture.dispose(), [texture])
+
+  useFrame(({ camera }) => {
+    mesh.current?.position.copy(camera.position)
+  })
+
+  return (
+    <mesh ref={mesh} renderOrder={-1000} frustumCulled={false}>
+      <sphereGeometry args={[60, 32, 20]} />
+      <meshBasicMaterial map={texture} side={THREE.BackSide} depthWrite={false} fog={false} toneMapped={false} />
+    </mesh>
+  )
+}
+
+/**
+ * The land beyond the garden.
+ *
+ * This used to be one flat plane in the sky colour, which is why the
+ * garden looked like an island floating in an empty white field: three
+ * quarters of the frame was ground pretending to be sky. It is now a
+ * radial ramp — open country near the beds, dissolving into the same
+ * haze the fog and the horizon use, so the eye reads distance instead
+ * of emptiness.
+ */
+function GroundHaze({ land, haze, nightness }: { land: string; haze: string; nightness: number }) {
+  const { texture, paint } = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 128
+    canvas.height = 128
+    const ctx = canvas.getContext('2d')!
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+
+    const paintRamp = (near: string, far: string) => {
+      const c = canvas.width / 2
+      // The plane is 110 across, so half-width is 55 world units. Country
+      // holds out to ~35, then gives way to haze by the plane's edge.
+      const grad = ctx.createRadialGradient(c, c, c * 0.24, c, c, c)
+      grad.addColorStop(0, near)
+      grad.addColorStop(0.64, near)
+      grad.addColorStop(1, far)
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      // Outside the inscribed circle a radial gradient leaves its end colour,
+      // which is what we want at the corners anyway.
+      tex.needsUpdate = true
+    }
+
+    return { texture: tex, paint: paintRamp }
+  }, [])
+
+  // The bounce colour already is "what the ground looks like at this hour",
+  // lifted toward the haze so the far country reads as distance. This plane
+  // is unlit, so it also has to be dimmed by hand after dusk — otherwise the
+  // far field glows brighter than the garden standing in front of it.
+  const near = useMemo(() => {
+    const c = new THREE.Color(land).lerp(new THREE.Color(haze), 0.32)
+    c.multiplyScalar(1 - nightness * 0.5)
+    return `#${c.getHexString()}`
+  }, [land, haze, nightness])
+
+  useEffect(() => {
+    paint(near, haze)
+  }, [near, haze, paint])
+
+  useEffect(() => () => texture.dispose(), [texture])
+
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
+      <planeGeometry args={[110, 110, 1, 1]} />
+      <meshBasicMaterial map={texture} toneMapped={false} />
+    </mesh>
+  )
+}
+
+function Ground({
+  dark,
+  horizon,
+  land,
+  nightness,
+}: {
+  dark: boolean
+  horizon: string
+  land: string
+  nightness: number
+}) {
   const texture = useMemo(() => gardenFloorTexture(dark), [dark])
-  const horizon = dark ? '#101d18' : '#cfdbe4'
   return (
     <group>
-      {/* Surrounding haze: the textured plan fades into this, which fades into fog. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
-        <planeGeometry args={[110, 110, 1, 1]} />
-        <meshBasicMaterial color={horizon} />
-      </mesh>
+      <GroundHaze land={land} haze={horizon} nightness={nightness} />
+      {/* The lit, textured plan fades its alpha out into the haze above, so
+          the join stays invisible however the light changes. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[GARDEN_EXTENT * 2, GARDEN_EXTENT * 2, 1, 1]} />
-        <meshStandardMaterial map={texture} roughness={1} metalness={0} />
+        <meshStandardMaterial map={texture} roughness={1} metalness={0} transparent depthWrite={false} />
       </mesh>
     </group>
   )
@@ -410,6 +562,70 @@ function GrassTufts({ count, dark }: { count: number; dark: boolean }) {
   )
 }
 
+/* --------------------------- night pieces --------------------------- */
+
+/** Keeps tone-mapping exposure in step with the hour. */
+function Exposure({ value }: { value: number }) {
+  const { gl } = useThree()
+  useEffect(() => {
+    gl.toneMappingExposure = value
+  }, [gl, value])
+  return null
+}
+
+/**
+ * Fireflies. Cheap on purpose: one points cloud, positions jittered on
+ * the CPU once, and a shader-free sine drift applied to the whole cloud
+ * so there is nothing per-particle to update each frame.
+ */
+function Fireflies({ count, strength }: { count: number; strength: number }) {
+  const points = useRef<THREE.Points>(null)
+
+  const geometry = useMemo(() => {
+    const rng = makeRng(hashSeed('fireflies'))
+    const positions = new Float32Array(count * 3)
+    const phases = new Float32Array(count)
+    for (let i = 0; i < count; i++) {
+      const angle = rng.range(0, Math.PI * 2)
+      const radius = rng.range(2, GARDEN_EXTENT * 0.46)
+      positions[i * 3] = Math.cos(angle) * radius
+      positions[i * 3 + 1] = rng.range(0.25, 1.95)
+      positions[i * 3 + 2] = Math.sin(angle) * radius
+      phases[i] = rng.range(0, Math.PI * 2)
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1))
+    return geo
+  }, [count])
+
+  useEffect(() => () => geometry.dispose(), [geometry])
+
+  useFrame(({ clock }) => {
+    const node = points.current
+    if (!node) return
+    const t = clock.elapsedTime
+    node.position.y = Math.sin(t * 0.55) * 0.22
+    node.rotation.y = t * 0.02
+    const material = node.material as THREE.PointsMaterial
+    material.opacity = strength * (0.55 + Math.sin(t * 1.6) * 0.18)
+  })
+
+  return (
+    <points ref={points} geometry={geometry} frustumCulled={false}>
+      <pointsMaterial
+        size={0.13}
+        sizeAttenuation
+        color="#ffe9a3"
+        transparent
+        opacity={strength * 0.6}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
+  )
+}
+
 /* ---------------------------- the scene ---------------------------- */
 
 interface GardenSceneProps {
@@ -421,6 +637,15 @@ interface GardenSceneProps {
   onSelectBed: (bed: GardenBed) => void
   idleSpin: boolean
   showLabels: boolean
+  /** 0 = before dawn, 0.5 = noon, 1 = night. */
+  timeOfDay: number
+  /** First person: pointer lock and WASD in place of the orbit camera.
+   *  Off by default — a guided tour drives the camera itself. */
+  walking?: boolean
+  /** Pointer lock ended — by Esc, by alt-tab, or by the browser's choice. */
+  onWalkExit?: () => void
+  /** Clicked on nothing while walking: put whatever is open away. */
+  onWalkDismiss?: () => void
 }
 
 function SceneContents({
@@ -432,26 +657,35 @@ function SceneContents({
   onSelectBed,
   idleSpin,
   showLabels,
+  timeOfDay,
+  walking = false,
+  onWalkExit,
+  onWalkDismiss,
   detail,
-  dark,
-}: GardenSceneProps & { detail: Detail; dark: boolean }) {
+}: GardenSceneProps & { detail: Detail }) {
   const controls = useRef<OrbitControlsImpl | null>(null)
   const placements = useGardenLayout()
   const reducedMotion = useGarden((s) => s.reducedMotion)
   const shadows = detail !== 'low'
+  // Everything about the light — sky, sun, fog, whether it is dark enough
+  // for fireflies — comes off one clock value.
+  const light = daylightAt(timeOfDay)
+  const dark = light.dark
 
   return (
     <>
-      <color attach="background" args={[dark ? '#101d18' : '#cfdbe4']} />
-      <fog attach="fog" args={[dark ? '#101d18' : '#cfdbe4', 30, 68]} />
+      <color attach="background" args={[light.sky]} />
+      <fog attach="fog" args={[light.sky, 42, 86]} />
+      <SkyDome zenith={light.zenith} horizon={light.sky} />
+      <Exposure value={light.exposure} />
 
       <WindClock strength={reducedMotion ? 0 : 1} />
 
-      <hemisphereLight args={[dark ? '#6f92a8' : '#bcd8ee', dark ? '#26401f' : '#5d6b3a', dark ? 1.15 : 1.1]} />
+      <hemisphereLight args={[light.hemi, light.bounce, light.ambient]} />
       <directionalLight
-        position={[9, 14, 7]}
-        intensity={dark ? 1.9 : 2.4}
-        color={dark ? '#b7d4ec' : '#fff2d8'}
+        position={light.sunPosition}
+        intensity={light.sunIntensity}
+        color={light.sun}
         castShadow={shadows}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-16}
@@ -461,9 +695,13 @@ function SceneContents({
         shadow-camera-far={40}
         shadow-bias={-0.0015}
       />
-      <directionalLight position={[-8, 6, -9]} intensity={dark ? 0.7 : 0.6} color={dark ? '#5f9c80' : '#a9c99b'} />
+      <directionalLight position={[-8, 6, -9]} intensity={0.55 + light.nightness * 0.2} color={light.bounce} />
 
-      <Ground dark={dark} />
+      {light.nightness > 0.05 && !reducedMotion && (
+        <Fireflies count={detail === 'low' ? 60 : 150} strength={light.nightness} />
+      )}
+
+      <Ground dark={dark} horizon={light.sky} land={light.bounce} nightness={light.nightness} />
       <Plaza dark={dark} />
       <BedPlinths dark={dark} />
       <GrassTufts count={detail === 'low' ? 1100 : 2400} dark={dark} />
@@ -481,19 +719,35 @@ function SceneContents({
               showSoil={false}
               castShadow={shadows}
               highlight={hoveredId === plant.id || selectedId === plant.id}
-              onPointerOver={(e) => {
-                ;(e as unknown as { stopPropagation: () => void }).stopPropagation()
-                onHover(plant.id)
-                document.body.style.cursor = 'pointer'
-              }}
-              onPointerOut={() => {
-                onHover(null)
-                document.body.style.cursor = ''
-              }}
-              onClick={(e) => {
-                ;(e as unknown as { stopPropagation: () => void }).stopPropagation()
-                onSelect(plant.id)
-              }}
+              /* On foot there is no cursor to hover with, and the crosshair
+                 does the picking instead. Dropping the handlers takes these
+                 meshes out of the raycast entirely, so the two schemes never
+                 disagree about what is under the middle of the screen. */
+              onPointerOver={
+                walking
+                  ? undefined
+                  : (e) => {
+                      ;(e as unknown as { stopPropagation: () => void }).stopPropagation()
+                      onHover(plant.id)
+                      document.body.style.cursor = 'pointer'
+                    }
+              }
+              onPointerOut={
+                walking
+                  ? undefined
+                  : () => {
+                      onHover(null)
+                      document.body.style.cursor = ''
+                    }
+              }
+              onClick={
+                walking
+                  ? undefined
+                  : (e) => {
+                      ;(e as unknown as { stopPropagation: () => void }).stopPropagation()
+                      onSelect(plant.id)
+                    }
+              }
             />
             {(hoveredId === plant.id || selectedId === plant.id) && (
               <Html position={[0, plant.model.height * scale + 0.22, 0]} center zIndexRange={[15, 0]}>
@@ -527,15 +781,27 @@ function SceneContents({
           </Html>
         ))}
 
-      <CameraRig goal={goal} controls={controls} idleSpin={idleSpin} />
+      {/* One camera scheme at a time. Unmounting the rig is what makes the
+          handover clean — two sets of controls both claiming the camera
+          fight each other every frame. Coming back, the rig mounts fresh and
+          its own effect glides the view home to whatever goal is current. */}
+      {walking && onWalkExit ? (
+        <WalkControls
+          placements={placements}
+          onExit={onWalkExit}
+          onAim={onHover}
+          onSelect={onSelect}
+          onDismiss={onWalkDismiss}
+        />
+      ) : (
+        <CameraRig goal={goal} controls={controls} idleSpin={idleSpin} />
+      )}
     </>
   )
 }
 
 export function GardenScene(props: GardenSceneProps) {
   const detail = useDetail('garden')
-  const theme = useGarden((s) => s.theme)
-  const dark = theme === 'dark'
 
   return (
     <Canvas
@@ -545,11 +811,13 @@ export function GardenScene(props: GardenSceneProps) {
       camera={{ fov: 42, near: 0.1, far: 90, position: [0, 11, 18] }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping
-        gl.toneMappingExposure = dark ? 1.18 : 1.08
       }}
-      onPointerMissed={() => props.onHover(null)}
+      /* On foot the crosshair owns what is aimed at, and nothing in the scene
+         carries pointer handlers, so every click would "miss" and wipe the
+         aim the moment you tried to act on it. */
+      onPointerMissed={props.walking ? undefined : () => props.onHover(null)}
     >
-      <SceneContents {...props} detail={detail} dark={dark} />
+      <SceneContents {...props} detail={detail} />
     </Canvas>
   )
 }

@@ -21,6 +21,8 @@ interface Result {
 const PAGES: Result[] = [
   { id: 'p-garden', kind: 'page', title: 'The Garden', subtitle: 'Walk the 3D beds', to: '/', icon: 'map' },
   { id: 'p-explore', kind: 'page', title: 'Explore all plants', subtitle: 'Search and filter the compendium', to: '/explore', icon: 'grid' },
+  { id: 'p-atlas', kind: 'page', title: 'The Atlas', subtitle: 'The whole collection read as data', to: '/atlas', icon: 'layers' },
+  { id: 'p-compare', kind: 'page', title: 'Comparison bench', subtitle: 'Put two or three plants side by side', to: '/compare', icon: 'expand' },
   { id: 'p-tours', kind: 'page', title: 'Guided tours', subtitle: 'Themed walks with narration', to: '/tours', icon: 'route' },
   { id: 'p-mine', kind: 'page', title: 'My Garden', subtitle: 'Saved plants and study notes', to: '/my-garden', icon: 'bookmark' },
 ]

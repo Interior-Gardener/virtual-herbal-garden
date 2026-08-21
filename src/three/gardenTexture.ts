@@ -151,12 +151,19 @@ export function gardenFloorTexture(dark: boolean): THREE.CanvasTexture {
     ctx.globalAlpha = 1
   }
 
-  // The lawn dissolves into the horizon colour so the plane has no visible edge.
-  const vignette = ctx.createRadialGradient(centre, centre, scale * 8.5, centre, centre, scale * 13.4)
-  vignette.addColorStop(0, dark ? 'rgba(16,29,24,0)' : 'rgba(207,219,228,0)')
-  vignette.addColorStop(1, dark ? 'rgba(16,29,24,1)' : 'rgba(207,219,228,1)')
-  ctx.fillStyle = vignette
+  // The lawn dissolves to *transparent* rather than to a colour. It used to
+  // fade into a hardcoded sky value, which stopped matching the moment the
+  // sky started changing with the hour — and left a visible plate edge,
+  // since this plane is lit and the background is not. Fading the alpha
+  // instead lets the unlit horizon plane behind it show through, so the
+  // join is exact at every hour of the day.
+  ctx.globalCompositeOperation = 'destination-out'
+  const fade = ctx.createRadialGradient(centre, centre, scale * 7.6, centre, centre, scale * 13.2)
+  fade.addColorStop(0, 'rgba(0,0,0,0)')
+  fade.addColorStop(1, 'rgba(0,0,0,1)')
+  ctx.fillStyle = fade
   ctx.fillRect(0, 0, size, size)
+  ctx.globalCompositeOperation = 'source-over'
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace

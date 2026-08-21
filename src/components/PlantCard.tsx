@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Plant } from '../types/plant'
 import { BotanicalPlate } from './BotanicalPlate'
+import { RasaGlyph } from './viz/RasaGlyph'
 import { Icon } from './ui/Icon'
 import { cx } from './ui/primitives'
 import { useGarden } from '../store/useGarden'
@@ -50,6 +51,7 @@ export function PlantCard({ plant, layout = 'grid', index = 0 }: PlantCardProps)
             </span>
           ))}
         </div>
+        <RasaGlyph plant={plant} className="hidden size-8 shrink-0 text-ink-faint sm:block" />
         <Icon name="chevronRight" size={18} className="shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5" />
       </Link>
     )
@@ -82,6 +84,15 @@ export function PlantCard({ plant, layout = 'grid', index = 0 }: PlantCardProps)
             }}
           >
             {plant.type}
+          </span>
+
+          {/* The taste signature, so a grid can be scanned by shape. */}
+          <span
+            className="absolute bottom-2.5 left-2.5 grid size-10 place-items-center rounded-xl text-ink-faint backdrop-blur-sm transition-opacity duration-500 group-hover:opacity-100"
+            style={{ background: 'color-mix(in srgb, var(--surface-raised) 72%, transparent)' }}
+            title="Taste profile and potency"
+          >
+            <RasaGlyph plant={plant} className="size-8" />
           </span>
         </div>
 

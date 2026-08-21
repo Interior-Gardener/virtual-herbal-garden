@@ -23,7 +23,7 @@ export default function Tours() {
         </p>
       </header>
 
-      <div className="grid gap-5 pb-20 sm:grid-cols-2">
+      <div className="grid gap-5 pb-20 sm:grid-cols-2" data-tour="tour-list">
         {tours.map((tour, index) => {
           const done = completed.includes(tour.id)
           const preview = tour.stops.map((s) => getPlant(s.plantId)).filter(Boolean)
