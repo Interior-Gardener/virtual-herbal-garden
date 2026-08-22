@@ -104,11 +104,26 @@ export default function Garden() {
   const hovered = getPlant(hoveredId ?? undefined)
   const met = getPlant(metId ?? undefined)
 
-  const [introPlaying, setIntroPlaying] = useState(!introSeen)
+  /* A deep link is an instruction to be somewhere specific, so it outranks
+   * the opening titles — presentation mode drives the garden through these
+   * and must not have the intro start up underneath it. Decided once, from
+   * the query the page was opened with, because the effect below strips
+   * that query as soon as it has acted on it. */
+  const [introPlaying, setIntroPlaying] = useState(
+    () => !introSeen && !params.has('bed') && !params.has('plant'),
+  )
 
-  // A replay from the help menu clears introSeen; pick that up here.
+  /* A replay from the help menu clears introSeen; pick that up here.
+   *
+   * What matters is the *transition* from seen to unseen, not the value:
+   * reacting to `!introSeen` alone would restart the titles on a first
+   * visit that arrived by deep link, and StrictMode's double-invoked
+   * effects made that fire even with a guard flag in the way. */
+  const wasSeen = useRef(introSeen)
   useEffect(() => {
-    if (!introSeen) setIntroPlaying(true)
+    const replayed = wasSeen.current && !introSeen
+    wasSeen.current = introSeen
+    if (replayed) setIntroPlaying(true)
   }, [introSeen])
 
   /* Walking needs a pointer to lock and a mouse to steer with. Phones and

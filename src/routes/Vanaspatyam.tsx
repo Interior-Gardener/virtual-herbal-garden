@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { VanaspatyamScene } from '../three/VanaspatyamScene'
+import { VanaspatyamScene, type BoardRead } from '../three/VanaspatyamScene'
 import { Crosshair, Encounter } from '../components/WalkHud'
+import { BoardCard, BOARD_ART } from '../components/BoardCard'
 import { BED_PLOTS, PLAQUE, POND_PLANT } from '../data/vanaspatyam'
 import { getPlant } from '../data/plants'
 import { Icon } from '../components/ui/Icon'
@@ -34,6 +35,72 @@ export default function Vanaspatyam() {
   const selected = getPlant(selectedId ?? undefined)
   const hovered = getPlant(hoveredId ?? undefined)
   const met = getPlant(metId ?? undefined)
+
+  /* ---------------- The label boards, read on hover ----------------
+   * Hold the pointer on any bed's board and the printed card it stands
+   * for is raised over the scene: the Somaiya artwork with this plant's
+   * names, properties and photographs set into it.
+   *
+   * The card is hung off the pointer by writing a transform straight
+   * onto the node rather than by holding the position in state — the
+   * boards report on every pointer move, and re-rendering the canvas
+   * that often would cost more than the card is worth. State changes
+   * only when the pointer crosses onto a different board. */
+  const [boardId, setBoardId] = useState<string | null>(null)
+  const boardIdRef = useRef<string | null>(null)
+  const boardRef = useRef<HTMLDivElement>(null)
+  const pointerRef = useRef({ x: 0, y: 0 })
+  const board = getPlant(boardId ?? undefined)
+
+  const placeBoard = useCallback(() => {
+    const el = boardRef.current
+    if (!el) return
+    const margin = 14
+    const gap = 24
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    const { x, y } = pointerRef.current
+    // Beside the pointer, flipping to its other side rather than running
+    // off the edge, and never pushed out of the window on either axis.
+    let left = x + gap
+    if (left + w > window.innerWidth - margin) left = x - gap - w
+    const maxLeft = Math.max(margin, window.innerWidth - w - margin)
+    const maxTop = Math.max(margin, window.innerHeight - h - margin)
+    left = Math.min(Math.max(left, margin), maxLeft)
+    const top = Math.min(Math.max(y - h / 2, margin), maxTop)
+    el.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`
+  }, [])
+
+  const readBoard = useCallback<BoardRead>(
+    (id, clientX, clientY) => {
+      if (id !== null && clientX !== undefined && clientY !== undefined) {
+        pointerRef.current = { x: clientX, y: clientY }
+        placeBoard()
+      }
+      if (boardIdRef.current === id) return
+      boardIdRef.current = id
+      setBoardId(id)
+    },
+    [placeBoard],
+  )
+
+  /* The card mounts with the pointer already somewhere, so it has to be
+   * put in place before the browser paints it. */
+  useLayoutEffect(() => {
+    if (boardId) placeBoard()
+  }, [boardId, placeBoard])
+
+  const clearBoard = useCallback(() => {
+    boardIdRef.current = null
+    setBoardId(null)
+  }, [])
+
+  /* The artwork is the one heavy thing on this page; fetch it while the
+   * garden is being looked at rather than on the first hover. */
+  useEffect(() => {
+    const art = new Image()
+    art.src = BOARD_ART
+  }, [])
 
   // The lotus grows in the pond rather than a bed, so it has to be counted
   // separately or the garden undersells itself by one.
@@ -96,6 +163,7 @@ export default function Vanaspatyam() {
         walking={walking}
         onWalkExit={stopWalking}
         onWalkDismiss={() => setMetId(null)}
+        onBoardRead={readBoard}
       />
 
       <div
@@ -163,7 +231,15 @@ export default function Vanaspatyam() {
                 </Button>
               </Link>
               {canWalk && (
-                <Button onClick={() => setWalking(true)} icon="compass">
+                <Button
+                  onClick={() => {
+                    // The pointer is about to be locked away, so nothing
+                    // would be left to clear a card standing open.
+                    clearBoard()
+                    setWalking(true)
+                  }}
+                  icon="compass"
+                >
                   Walk in
                 </Button>
               )}
@@ -223,6 +299,31 @@ export default function Vanaspatyam() {
           </AnimatePresence>
         </>
       )}
+
+      {/* The board being read. The frame stays mounted so its transform
+          survives between cards and can be set before the card appears. */}
+      <div
+        ref={boardRef}
+        className="pointer-events-none fixed top-0 left-0 z-30"
+        style={{ width: 'clamp(19rem, 52vw, 44rem)', willChange: 'transform' }}
+      >
+        <AnimatePresence>
+          {board && (
+            <motion.div
+              key={board.id}
+              initial={{ opacity: 0, scale: 0.965 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.985 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <BoardCard
+                plant={board}
+                className="overflow-hidden rounded-[6px] shadow-[0_28px_64px_-22px_rgb(0_0_0/0.6)]"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* A plant met on foot, once the pointer is back. */}
       <div className={cx('pointer-events-none', walking && 'hidden')} aria-hidden />

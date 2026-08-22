@@ -209,8 +209,19 @@ function Bed({ plot, dark }: { plot: GardenBedPlot; dark: boolean }) {
 }
 
 /**
+ * What a board reports when the pointer is on it: which plant it names,
+ * and where on screen to hang the printed card. Null means the pointer
+ * has left every board.
+ */
+export type BoardRead = (plantId: string | null, clientX?: number, clientY?: number) => void
+
+/**
  * The label board: a white plate raked back on a single black post, the
  * prop that makes the place recognisable more than any plant does.
+ *
+ * Reading one on the ground means walking up and squinting at the print,
+ * so reading one here means holding the pointer on it: `onRead` fires
+ * and the route raises the full board card over the scene.
  */
 function LabelBoard({
   position,
@@ -218,12 +229,14 @@ function LabelBoard({
   plant,
   dark,
   showText,
+  onRead,
 }: {
   position: [number, number, number]
   rotation: number
   plant: Plant
   dark: boolean
   showText: boolean
+  onRead?: BoardRead
 }) {
   return (
     <group position={position} rotation={[0, rotation, 0]}>
@@ -232,12 +245,34 @@ function LabelBoard({
         <meshStandardMaterial color={dark ? '#15181a' : '#2b2f31'} roughness={0.7} metalness={0.3} />
       </mesh>
       <group position={[0, 0.72, 0]} rotation={[-Math.PI / 3.1, 0, 0]}>
-        <mesh castShadow>
+        {/* The plate carries the pointer events for the whole board — the
+            orange rule in front of it is taken out of the raycast below so
+            crossing it cannot read as leaving the board. */}
+        <mesh
+          castShadow
+          onPointerOver={
+            onRead
+              ? (e) => {
+                  e.stopPropagation()
+                  onRead(plant.id, e.clientX, e.clientY)
+                }
+              : undefined
+          }
+          onPointerMove={
+            onRead
+              ? (e) => {
+                  e.stopPropagation()
+                  onRead(plant.id, e.clientX, e.clientY)
+                }
+              : undefined
+          }
+          onPointerOut={onRead ? () => onRead(null) : undefined}
+        >
           <boxGeometry args={[0.62, 0.42, 0.02]} />
           <meshStandardMaterial color={dark ? '#7d8288' : '#eceae2'} roughness={0.55} />
         </mesh>
         {/* The orange rule across every board on site. */}
-        <mesh position={[0, -0.03, 0.012]}>
+        <mesh position={[0, -0.03, 0.012]} raycast={() => null}>
           <planeGeometry args={[0.62, 0.045]} />
           <meshStandardMaterial color="#e2762c" roughness={0.6} />
         </mesh>
@@ -698,6 +733,8 @@ export interface VanaspatyamSceneProps {
   walking?: boolean
   onWalkExit?: () => void
   onWalkDismiss?: () => void
+  /** Pointer on a bed's label board — see `BoardRead`. */
+  onBoardRead?: BoardRead
 }
 
 function SceneContents({
@@ -709,6 +746,7 @@ function SceneContents({
   walking = false,
   onWalkExit,
   onWalkDismiss,
+  onBoardRead,
   detail,
 }: VanaspatyamSceneProps & { detail: Detail }) {
   const controls = useRef<OrbitControlsImpl | null>(null)
@@ -857,6 +895,8 @@ function SceneContents({
             plant={first}
             dark={dark}
             showText={detail !== 'low'}
+            /* Walking locks the pointer away, so there is nothing to hover with. */
+            onRead={walking ? undefined : onBoardRead}
             position={[plot.x + dir * (plot.halfX - 0.3), 0, plot.z + plot.halfZ + 0.42]}
             /* Facing +Z, which is back down the garden toward the gate — a
                board you read as you walk up to the bed, not after passing it. */

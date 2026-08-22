@@ -14,7 +14,7 @@ import type { Plant } from '../types/plant'
  * There are two gardens now: the designed one, laid out by theme so the
  * medicine is what organises the ground, and Vanaspatyam, which is a
  * real place on a real campus and laid out the way it actually is. They
- * hold the same twenty-five plants. Choosing between them is choosing
+ * hold the same plants. Choosing between them is choosing
  * how you want to meet them, so the choice is made here rather than
  * buried in a menu.
  * ------------------------------------------------------------------ */

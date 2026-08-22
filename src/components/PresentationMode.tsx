@@ -28,19 +28,19 @@ export const SCENES: Scene[] = [
   {
     route: '/garden',
     eyebrow: 'The garden',
-    caption: 'Twenty-five AYUSH medicinal plants, growing in a garden you can walk through.',
-    say: 'Welcome to Vanaspati, a virtual herbal garden. Twenty-five medicinal plants of the AYUSH tradition, laid out in six themed beds you can walk through.',
+    caption: 'Thirty AYUSH medicinal plants, growing in gardens you can walk through.',
+    say: 'Welcome to Vanaspati, a virtual herbal garden. Thirty medicinal plants of the AYUSH tradition, laid out in six themed beds you can walk through.',
     seconds: 11,
   },
   {
-    route: '/?bed=immunity',
+    route: '/garden?bed=immunity',
     eyebrow: 'Rasayana Grove',
     caption: 'Six beds, one for each system of the body. The camera flies to whichever you choose.',
     say: 'The beds are arranged by what the plants do. This is the Rasayana Grove — tulsi, giloy, amla and ashwagandha, the herbs of immunity and vitality.',
     seconds: 11,
   },
   {
-    route: '/?plant=tulsi',
+    route: '/garden?plant=tulsi',
     eyebrow: 'Generated, not downloaded',
     caption: 'Every plant is grown at run time from its written botany. No models, no textures, no photographs.',
     say: 'There is not a single downloaded 3D model in this project. Every leaf, stem and flower is generated from the plant’s botanical description — which is why this tulsi has the square stem of a true mint.',

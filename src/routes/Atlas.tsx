@@ -170,7 +170,7 @@ export default function Atlas() {
           <StaggerWords text="The whole garden, read as data" />
         </h1>
         <p className="mt-4 max-w-2xl text-[1.02rem] leading-relaxed text-ink-soft text-balance-pretty">
-          Twenty-five species carry a great deal more than their names. Here is what the collection looks like when you
+          These species carry a great deal more than their names. Here is what the collection looks like when you
           ask it where it grows, what it treats, how it tastes, and how much of it is still safe in the wild.
         </p>
       </header>

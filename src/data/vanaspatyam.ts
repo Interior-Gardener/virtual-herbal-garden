@@ -76,8 +76,8 @@ const BED_OUTER_X = 9.6
 const BED_SPLIT_GAP = 0.25
 
 /**
- * The 25 species of the compendium across the sixteen plots, each planted
- * once. Height rises with distance from the gate — ground-cover herbs at
+ * The compendium's species across the sixteen plots, each planted once —
+ * every one except the lotus, which stands in the pond instead. Height rises with distance from the gate — ground-cover herbs at
  * the entrance, trees against the pond — which is both how the plan's
  * planting-height guide reads and how you would actually plant it, so
  * nothing stands in front of anything shorter.

@@ -117,7 +117,7 @@ export default function Explore() {
       <header className="py-8 sm:py-12">
         <p className="text-[0.72rem] font-semibold tracking-[0.2em] text-accent uppercase">The compendium</p>
         <h1 className="mt-2 max-w-3xl font-display text-[clamp(2rem,5vw,3.2rem)] leading-[1.05] font-semibold tracking-[-0.03em]">
-          Twenty-five medicinal plants, described the way a vaidya would.
+          {plants.length} medicinal plants, described the way a vaidya would.
         </h1>
         <p className="mt-3 max-w-2xl text-[0.95rem] leading-relaxed text-ink-soft text-balance-pretty">
           Search by name, by symptom, by the part that carries the medicine, by the region where it grows, or by

@@ -143,7 +143,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search 25 plants, tours, or a symptom…"
+            placeholder={`Search ${plants.length} plants, tours, or a symptom…`}
             className="h-14 flex-1 bg-transparent text-[0.95rem] outline-none placeholder:text-ink-faint"
             autoComplete="off"
             spellCheck={false}
