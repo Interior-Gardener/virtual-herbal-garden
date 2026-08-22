@@ -6,6 +6,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import type { Plant } from '../types/plant'
 import { PlantObject } from './PlantObject'
 import { buildPlantGeometry } from './procedural/plant'
+import { hotspotAnchors } from './hotspots'
 import { tickWind } from './materials'
 import { useDetail, dprFor } from '../hooks/useDetail'
 import { useGarden } from '../store/useGarden'
@@ -20,46 +21,6 @@ import { cx } from '../components/ui/primitives'
 function WindClock({ strength }: { strength: number }) {
   useFrame(({ clock }) => tickWind(clock.elapsedTime, strength))
   return null
-}
-
-/**
- * Where on the plant each medicinal part sits. The height comes from the
- * organ; the bearing is spread by index so four labels never stack up on
- * the same side of the specimen.
- */
-export function hotspotAnchor(
-  part: string,
-  index: number,
-  height: number,
-  radius: number,
-): [number, number, number] {
-  const p = part.toLowerCase()
-  let level = 0.62
-  let reach = 0.72
-  if (p.includes('root') || p.includes('rhizome') || p.includes('tuber') || p.includes('bulb')) {
-    level = 0.04
-    reach = 0.4
-  } else if (
-    p.includes('bark') ||
-    p.includes('stem') ||
-    p.includes('wood') ||
-    p.includes('resin') ||
-    p.includes('twig')
-  ) {
-    level = 0.42
-    reach = 0.2
-  } else if (p.includes('flower')) {
-    level = 0.93
-    reach = 0.35
-  } else if (p.includes('fruit') || p.includes('seed') || p.includes('pod')) {
-    level = 0.74
-    reach = 0.62
-  } else if (p.includes('gel') || p.includes('latex')) {
-    level = 0.45
-    reach = 0.72
-  }
-  const bearing = index * 1.9 + 0.6
-  return [Math.cos(bearing) * radius * reach, height * level, Math.sin(bearing) * radius * reach]
 }
 
 export function Hotspot({
@@ -187,6 +148,8 @@ export function PlantViewer({ plant, className }: PlantViewerProps) {
   const [showScale, setShowScale] = useState(false)
   const controls = useRef<OrbitControlsImpl | null>(null)
 
+  const parts = useMemo(() => plant.partsUsed.slice(0, 4), [plant.partsUsed])
+
   const metrics = useMemo(() => {
     const built = buildPlantGeometry(plant.id, plant.model, detail)
     // Frame on what was actually generated, not on the species' typical height:
@@ -200,8 +163,10 @@ export function PlantViewer({ plant, className }: PlantViewerProps) {
       centre: top * 0.5,
       /** The species' documented height, used by the scale bar. */
       trueHeight: built.height,
+      /** Label anchors picked off the generated organs themselves. */
+      anchors: hotspotAnchors(parts, built),
     }
-  }, [plant.id, plant.model, detail])
+  }, [plant.id, plant.model, detail, parts])
 
   const dark = theme === 'dark'
 
@@ -241,16 +206,14 @@ export function PlantViewer({ plant, className }: PlantViewerProps) {
           <PlantObject plant={plant} detail={detail} grow showSoil={false} />
 
           {showHotspots &&
-            plant.partsUsed
-              .slice(0, 4)
-              .map((part, i) => (
-                <Hotspot
-                  key={part}
-                  position={hotspotAnchor(part, i, metrics.height, metrics.radius)}
-                  label={part}
-                  accent={plant.accent}
-                />
-              ))}
+            parts.map((part, i) => (
+              <Hotspot
+                key={part}
+                position={metrics.anchors[i]}
+                label={part}
+                accent={plant.accent}
+              />
+            ))}
 
           {showScale && <ScaleBar height={metrics.trueHeight} radius={metrics.radius} />}
 

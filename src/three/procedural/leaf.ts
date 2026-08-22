@@ -60,6 +60,8 @@ export interface LeafBuildOptions {
   curl?: number
   /** Half-thickness at the leaf's fattest point; 0 gives a flat sheet. */
   thickness?: number
+  /** Horny marginal prickles, as on an aloe. 0 = none, 1 = long teeth. */
+  teeth?: number
   /** Longitudinal segments. */
   rows?: number
   /** Segments across the blade (per half). */
@@ -80,12 +82,13 @@ export function buildLeafGeometry(opts: LeafBuildOptions): THREE.BufferGeometry 
     droop = 0.25,
     curl = 0.25,
     thickness = 0,
+    teeth = 0,
     rows = 9,
     cols = 3,
   } = opts
 
   const notch = notchDepth(shape)
-  const teeth = 9
+  const scallops = 9
   const halfW = width * 0.5
   const shells = thickness > 0 ? 2 : 1
   const cross = cols * 2 + 1
@@ -105,7 +108,7 @@ export function buildLeafGeometry(opts: LeafBuildOptions): THREE.BufferGeometry 
 
       // Toothed margins: nibble the outline in a regular saw.
       if (serration > 0) {
-        const tooth = 0.5 + 0.5 * Math.cos(t * teeth * Math.PI * 2)
+        const tooth = 0.5 + 0.5 * Math.cos(t * scallops * Math.PI * 2)
         profile *= 1 - serration * 0.16 * tooth
       }
 
@@ -142,6 +145,52 @@ export function buildLeafGeometry(opts: LeafBuildOptions): THREE.BufferGeometry 
     }
   }
 
+  // Horny marginal prickles. The blade's own surface can't carry them — a
+  // scalloped outline reads as a wave, not a spine — so each tooth is a small
+  // triangle standing off the margin, angled toward the tip like the real thing.
+  if (teeth > 0) {
+    const margin = (t: number, sign: number) => {
+      let profile = leafProfile(shape, t)
+      if (serration > 0) {
+        const wave = 0.5 + 0.5 * Math.cos(t * scallops * Math.PI * 2)
+        profile *= 1 - serration * 0.16 * wave
+      }
+      const rowHalf = profile * halfW
+      const notchFall = notch > 0 ? Math.max(0, 1 - t / 0.28) : 0
+      return [
+        sign * rowHalf,
+        t * length - notch * length * notchFall,
+        -droop * length * t * t + curl * rowHalf,
+      ] as const
+    }
+
+    // Many small spines rather than a few big ones — an aloe margin is a comb,
+    // not a holly leaf.
+    const count = Math.max(6, Math.round(rows * 1.8))
+    const reach = width * 0.12 * teeth
+    for (let sign = -1; sign <= 1; sign += 2) {
+      for (let i = 0; i < count; i++) {
+        // Teeth run from just above the sheath to just short of the tip.
+        const t0 = 0.12 + (0.84 * i) / count
+        const t1 = t0 + 0.5 / count
+        const a = margin(t0, sign)
+        const b = margin(t1, sign)
+        const base = positions.length / 3
+        const apex = [
+          (a[0] + b[0]) * 0.5 + sign * reach * 0.86,
+          (a[1] + b[1]) * 0.5 + reach * 0.62,
+          (a[2] + b[2]) * 0.5,
+        ]
+        for (const [x, y, z] of [a, b, apex]) {
+          positions.push(x, y, z)
+          uvs.push(sign > 0 ? 1 : 0, t0)
+          flex.push(t0 * t0)
+        }
+        indices.push(base, base + 1, base + 2)
+      }
+    }
+  }
+
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
@@ -174,6 +223,7 @@ export function buildLeafUnit(
       droop: leaf.droop,
       curl: leaf.curl,
       thickness: leaf.thickness,
+      teeth: leaf.teeth,
       rows,
       cols,
     })

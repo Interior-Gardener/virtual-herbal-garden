@@ -59,7 +59,11 @@ export function PlantObject({
         color: leaf.top,
         backColor: leaf.bottom,
         gloss: leaf.gloss ?? 0.3,
-        veins: 1,
+        // A succulent blade has no visible venation to draw — the flecking
+        // takes its place.
+        veins: leaf.spots ? 0.1 : 1,
+        spots: leaf.spots ?? 0,
+        spotColor: leaf.spotColor,
       }),
       petal: createOrganMaterial({
         color: spec.flower?.color ?? '#ffffff',
@@ -75,6 +79,11 @@ export function PlantObject({
       fruit: createOrganMaterial({
         color: spec.fruit?.color ?? '#c0563a',
         gloss: 0.65,
+        side: THREE.FrontSide,
+      }),
+      ripeFruit: createOrganMaterial({
+        color: spec.fruit?.ripeColor ?? spec.fruit?.color ?? '#c0563a',
+        gloss: 0.7,
         side: THREE.FrontSide,
       }),
       rhizome: createOrganMaterial({
@@ -151,6 +160,9 @@ export function PlantObject({
       {geometry.core && <mesh geometry={geometry.core} material={materials.core} />}
       {geometry.fruit && (
         <mesh geometry={geometry.fruit} material={materials.fruit} castShadow={castShadow} />
+      )}
+      {geometry.ripeFruit && (
+        <mesh geometry={geometry.ripeFruit} material={materials.ripeFruit} castShadow={castShadow} />
       )}
     </group>
   )

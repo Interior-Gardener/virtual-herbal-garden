@@ -37,6 +37,8 @@ export interface PlantGeometrySet {
   petal: THREE.BufferGeometry | null
   core: THREE.BufferGeometry | null
   fruit: THREE.BufferGeometry | null
+  /** Ripe fruit, kept apart so the two states can be coloured and labelled separately. */
+  ripeFruit: THREE.BufferGeometry | null
   rhizome: THREE.BufferGeometry | null
   /** Bounding measurements used for framing the camera and spacing beds. */
   height: number
@@ -206,6 +208,7 @@ interface BuildContext {
   petals: THREE.BufferGeometry[]
   cores: THREE.BufferGeometry[]
   fruits: THREE.BufferGeometry[]
+  ripeFruits: THREE.BufferGeometry[]
   rhizomes: THREE.BufferGeometry[]
   leafTemplate: THREE.BufferGeometry
   floretPetal: THREE.BufferGeometry | null
@@ -553,6 +556,9 @@ function attachFruit(ctx: BuildContext) {
   ctx.fruitTemplate = template
 
   const count = Math.max(2, Math.round(fruit.count * q.density))
+  // Species whose ripe and unripe fruit are used for opposite things (bael)
+  // carry both on the tree at once, so a share of the crop is drawn ripe.
+  const ripe = fruit.ripeColor ? Math.max(1, Math.round(count * (fruit.ripeShare ?? 0.34))) : 0
   for (let i = 0; i < count; i++) {
     const tip = ctx.tips[i % ctx.tips.length]
     const hang = tip.point
@@ -566,7 +572,8 @@ function attachFruit(ctx: BuildContext) {
       new THREE.Quaternion().setFromAxisAngle(Y_AXIS, rng.range(0, Math.PI * 2)),
       new THREE.Vector3(1, 1, 1).multiplyScalar(rng.range(0.85, 1.15)),
     )
-    place(ctx.fruits, template, m, tip.phase, rng.jitter(1))
+    // Ripe ones hang on alternating tips so the two states are interleaved.
+    place(i % 2 === 1 && ctx.ripeFruits.length < ripe ? ctx.ripeFruits : ctx.fruits, template, m, tip.phase, rng.jitter(1))
   }
 }
 
@@ -774,6 +781,7 @@ export function buildPlantGeometry(
     petals: [],
     cores: [],
     fruits: [],
+    ripeFruits: [],
     rhizomes: [],
     leafTemplate: buildLeafUnit(spec.leaf, { rows: q.rows, cols: q.cols, leafletScale: q.leafletScale }),
     floretPetal: null,
@@ -802,13 +810,14 @@ export function buildPlantGeometry(
     petal: mergeOrNull(ctx.petals),
     core: mergeOrNull(ctx.cores),
     fruit: mergeOrNull(ctx.fruits),
+    ripeFruit: mergeOrNull(ctx.ripeFruits),
     rhizome: mergeOrNull(ctx.rhizomes),
     height: spec.height,
     radius: ctx.radius,
     bounds: new THREE.Box3(),
   }
 
-  const parts = [set.stem, set.foliage, set.petal, set.core, set.fruit, set.rhizome]
+  const parts = [set.stem, set.foliage, set.petal, set.core, set.fruit, set.ripeFruit, set.rhizome]
   for (const g of parts) {
     if (!g) continue
     if (!g.attributes.normal) g.computeVertexNormals()
@@ -828,7 +837,7 @@ export function buildPlantGeometry(
 /** Frees every cached build — used when the whole 3D layer unmounts. */
 export function disposePlantCache() {
   for (const set of cache.values()) {
-    for (const g of [set.stem, set.foliage, set.petal, set.core, set.fruit, set.rhizome]) g?.dispose()
+    for (const g of [set.stem, set.foliage, set.petal, set.core, set.fruit, set.ripeFruit, set.rhizome]) g?.dispose()
   }
   cache.clear()
 }

@@ -61,6 +61,12 @@ export interface PlantModelSpec {
     curl?: number
     thickness?: number
     gloss?: number
+    /** Horny marginal prickles, as on an aloe. 0–1. */
+    teeth?: number
+    /** Pale flecking across the blade, 0–1. */
+    spots?: number
+    /** Colour of that flecking; defaults to a chalky white. */
+    spotColor?: string
   }
   flower?: {
     form: 'spike' | 'umbel' | 'panicle' | 'solitary' | 'cluster' | 'catkin'
@@ -75,6 +81,10 @@ export interface PlantModelSpec {
     color: string
     size: number
     count: number
+    /** Ripe colour, for species whose ripe and unripe fruit are used apart. */
+    ripeColor?: string
+    /** Share of the crop drawn ripe, 0–1. Defaults to a third when a ripe colour is set. */
+    ripeShare?: number
   }
   /** Visible underground organ, drawn at the soil line. */
   rhizome?: { color: string; size: number }

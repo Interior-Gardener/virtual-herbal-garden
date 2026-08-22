@@ -45,6 +45,8 @@ const VERTEX_BODY = /* glsl */ `
 const FRAGMENT_HEAD = /* glsl */ `
   uniform vec3 uBackTint;
   uniform float uVein;
+  uniform float uSpots;
+  uniform vec3 uSpotTint;
   varying vec2 vLeafUv;
   varying float vTint;
 `
@@ -64,6 +66,19 @@ const FRAGMENT_BODY = /* glsl */ `
   float vein = clamp(midrib + lateral * 0.65, 0.0, 1.0) * uVein;
   diffuseColor.rgb *= mix(1.0, 0.76, vein);
 
+  #ifdef ORGAN_SPOTS
+  // Aloe's pale flecking: one blotch per cell of a grid stretched along the
+  // blade, thinning out toward the tip the way the spots fade as a leaf ages.
+  vec2 cell = vLeafUv * vec2(3.0, 16.0);
+  vec2 id = floor(cell);
+  float h = fract(sin(dot(id, vec2(12.9898, 78.233))) * 43758.5453);
+  vec2 jitter = vec2(fract(h * 17.0), fract(h * 31.0)) - 0.5;
+  float d = length((fract(cell) - 0.5 - jitter * 0.55) * vec2(1.0, 2.6));
+  float blotch = (1.0 - smoothstep(0.12, 0.34, d)) * step(0.42, h);
+  blotch *= smoothstep(0.02, 0.22, vLeafUv.y) * (1.0 - smoothstep(0.55, 0.98, vLeafUv.y));
+  diffuseColor.rgb = mix(diffuseColor.rgb, uSpotTint, blotch * uSpots);
+  #endif
+
   // Per-leaf tonal variation, and a paler underside on backfaces.
   diffuseColor.rgb *= 1.0 + vTint * 0.085;
   if (!gl_FrontFacing) diffuseColor.rgb = mix(diffuseColor.rgb, uBackTint, 0.72);
@@ -82,6 +97,10 @@ export interface OrganMaterialOptions {
   still?: boolean
   /** Draws vertical fissures instead of venation — for woody trunks. */
   bark?: boolean
+  /** Pale flecking across the blade, 0–1 — the mottling on a young aloe. */
+  spots?: number
+  /** Colour of that flecking. */
+  spotColor?: string
 }
 
 /**
@@ -100,12 +119,16 @@ export function createOrganMaterial(opts: OrganMaterialOptions): THREE.MeshStand
   const vein = { value: opts.veins ?? 0 }
   const still = opts.still ?? false
   const bark = opts.bark ?? false
+  const spots = opts.spots ?? 0
+  const spotTint = new THREE.Color(opts.spotColor ?? '#e8f0e2')
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = windUniforms.uTime
     shader.uniforms.uWind = { value: still ? 0 : 1 }
     shader.uniforms.uBackTint = { value: backTint }
     shader.uniforms.uVein = vein
+    shader.uniforms.uSpots = { value: spots }
+    shader.uniforms.uSpotTint = { value: spotTint }
 
     shader.vertexShader = VERTEX_HEAD + shader.vertexShader
     shader.vertexShader = shader.vertexShader.replace(
@@ -113,7 +136,7 @@ export function createOrganMaterial(opts: OrganMaterialOptions): THREE.MeshStand
       `#include <begin_vertex>\n${VERTEX_BODY}`,
     )
 
-    const defines = bark ? '#define ORGAN_BARK\n' : ''
+    const defines = (bark ? '#define ORGAN_BARK\n' : '') + (spots > 0 ? '#define ORGAN_SPOTS\n' : '')
     shader.fragmentShader = defines + FRAGMENT_HEAD + shader.fragmentShader
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <color_fragment>',
@@ -122,7 +145,8 @@ export function createOrganMaterial(opts: OrganMaterialOptions): THREE.MeshStand
   }
 
   // A small fixed set of variants, so the whole garden shares a few programs.
-  material.customProgramCacheKey = () => `organ-${still ? 'still' : 'wind'}-${bark ? 'bark' : 'smooth'}`
+  material.customProgramCacheKey = () =>
+    `organ-${still ? 'still' : 'wind'}-${bark ? 'bark' : 'smooth'}-${spots > 0 ? 'spotted' : 'plain'}`
 
   return material
 }

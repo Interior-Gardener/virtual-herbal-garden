@@ -220,7 +220,7 @@ export const plantsPart3: Plant[] = [
         curl: 0.2,
         gloss: 0.45,
       },
-      fruit: { shape: 'round', color: '#cbbd60', size: 0.05, count: 4 },
+      fruit: { shape: 'round', color: '#8b9c4c', ripeColor: '#cbbd60', ripeShare: 0.5, size: 0.05, count: 4 },
       ground: 'soil',
     },
   },
