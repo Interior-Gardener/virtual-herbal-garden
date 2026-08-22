@@ -2,68 +2,27 @@ import { useId, useMemo, useState } from 'react'
 import { motion } from 'motion/react'
 import { plants } from '../../data/plants'
 import { REGION_POINTS, type RegionPoint } from '../../lib/ayurveda'
+import { INDIA_VIEWBOX, ISLANDS, MAINLAND, pathFor, project } from '../../lib/indiaOutline'
 import type { Plant, RegionTag } from '../../types/plant'
 
 /* ------------------------------------------------------------------ *
  * Where the garden grows.
  *
- * A stylised India — deliberately smooth and diagrammatic rather than
- * cartographic, because the point is "which climates does this
- * collection cover", not survey accuracy. Regions are sized by how many
- * species the compendium places there.
+ * The silhouette is the real coastline and border, projected from
+ * longitude and latitude (see lib/indiaOutline). Regions are sized by
+ * how many species the compendium places there — those circles are
+ * indicative, but the country under them is not.
  * ------------------------------------------------------------------ */
 
-/* Boundary traced clockwise from Kashmir, at roughly one point per major
- * bend of the coast or border.
- *
- * Longitude and latitude are scaled by the same number of pixels per
- * degree — at Indian latitudes a degree of each is within a few per cent
- * of the same distance, and scaling them differently is what makes a
- * hand-drawn India come out looking narrow and wrong. */
-const OUTLINE: [number, number][] = [
-  // Kashmir and the northern border, running east
-  [104, 78], [116, 88], [122, 104], [159, 119], [192, 130], [225, 143],
-  [255, 160], [285, 160], [306, 157], [337, 165], [376, 171], [398, 166],
-  // The north-east, and back down through Mizoram
-  [404, 181], [386, 206], [368, 212], [356, 236], [341, 243],
-  // Bay of Bengal: Bengal, Odisha, Andhra, Tamil Nadu
-  [317, 239], [284, 243], [270, 255], [246, 270], [222, 291], [194, 313],
-  [182, 330], [181, 355], [177, 392], [157, 410],
-  // Kanyakumari
-  [145, 424],
-  // Arabian Sea: Kerala, Konkan, Gujarat, Kutch
-  [131, 402], [122, 374], [111, 350], [100, 328], [90, 295], [85, 275],
-  [84, 252], [76, 246],
-  // Saurashtra and the Gulf of Kutch — the silhouette's clearest landmark
-  [70, 258], [56, 252], [50, 238], [36, 234], [27, 219],
-  // Rajasthan and Punjab, closing back at Kashmir
-  [54, 204], [48, 165], [77, 147], [98, 107],
-]
-
-/** Catmull-Rom through the points, emitted as cubic beziers. */
-function smoothClosedPath(points: [number, number][], tension = 0.42): string {
-  const n = points.length
-  const at = (i: number) => points[((i % n) + n) % n]
-  let d = `M ${at(0)[0]} ${at(0)[1]}`
-  for (let i = 0; i < n; i++) {
-    const [x0, y0] = at(i - 1)
-    const [x1, y1] = at(i)
-    const [x2, y2] = at(i + 1)
-    const [x3, y3] = at(i + 2)
-    const c1x = x1 + ((x2 - x0) / 6) * tension * 2
-    const c1y = y1 + ((y2 - y0) / 6) * tension * 2
-    const c2x = x2 - ((x3 - x1) / 6) * tension * 2
-    const c2y = y2 - ((y3 - y1) / 6) * tension * 2
-    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`
-  }
-  return `${d} Z`
-}
-
-const INDIA = smoothClosedPath(OUTLINE)
+const INDIA = pathFor(MAINLAND)
+const ISLAND_PATHS = ISLANDS.map(pathFor)
 
 interface RegionDatum extends RegionPoint {
   region: RegionTag
   members: Plant[]
+  /** The marker's place on the map, projected once. */
+  x: number
+  y: number
 }
 
 function useRegionData(): { regions: RegionDatum[]; panIndia: Plant[] } {
@@ -85,7 +44,9 @@ function useRegionData(): { regions: RegionDatum[]; panIndia: Plant[] } {
       .filter(([region]) => region !== 'Pan-India')
       .map(([region, members]) => {
         const pos = REGION_POINTS[region]
-        return pos ? { region: region as RegionTag, ...pos, members } : null
+        if (!pos) return null
+        const [x, y] = project(pos.lon, pos.lat)
+        return { region: region as RegionTag, ...pos, members, x, y }
       })
       .filter((d): d is RegionDatum => d !== null)
       .sort((a, b) => b.members.length - a.members.length)
@@ -129,7 +90,7 @@ export function IndiaMap({
   return (
     <div className={className}>
       <div className="relative">
-        <svg viewBox="0 0 420 480" className="w-full" role="img" aria-label="Medicinal plants by region of India">
+        <svg viewBox={INDIA_VIEWBOX} className="w-full" role="img" aria-label="Medicinal plants by region of India">
           <defs>
             <radialGradient id={`${uid}-land`} cx="45%" cy="35%">
               <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.16} />
@@ -149,13 +110,13 @@ export function IndiaMap({
 
           {/* Latitude hatching, so the silhouette reads as a map and not a blob */}
           <g clipPath={`url(#${uid}-clip)`} opacity={0.45}>
-            {Array.from({ length: 24 }, (_, i) => (
+            {Array.from({ length: 29 }, (_, i) => (
               <line
                 key={i}
                 x1={10}
                 x2={415}
-                y1={60 + i * 16}
-                y2={60 + i * 16}
+                y1={16 + i * 16}
+                y2={16 + i * 16}
                 stroke="var(--line-strong)"
                 strokeWidth={0.6}
               />
@@ -172,6 +133,17 @@ export function IndiaMap({
             animate={{ pathLength: 1, opacity: 1 }}
             transition={{ pathLength: { duration: 1.8, ease: 'easeInOut' }, opacity: { duration: 0.4 } }}
           />
+
+          {/* The Andaman and Nicobar chain — small, but part of the country. */}
+          <motion.g
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2, duration: 0.5 }}
+          >
+            {ISLAND_PATHS.map((d, i) => (
+              <path key={i} d={d} fill={`url(#${uid}-land)`} stroke="var(--accent)" strokeWidth={1} />
+            ))}
+          </motion.g>
 
           {data.map((d, i) => {
             const isActive = active?.region === d.region
@@ -263,7 +235,7 @@ export function IndiaMap({
             country
           </span>
         </button>
-        <span>Schematic — regions are indicative, not surveyed</span>
+        <span>Boundary after Survey of India · region markers are indicative</span>
       </div>
     </div>
   )

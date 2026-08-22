@@ -130,20 +130,24 @@ export const CONSERVATION_TIERS = [
  * neighbouring region.
  */
 export interface RegionPoint {
-  x: number
-  y: number
+  /** Where the region sits, as real coordinates — the map projects them. */
+  lon: number
+  lat: number
   label: string
   side: 'above' | 'below' | 'left' | 'right'
 }
 
 export const REGION_POINTS: Record<string, RegionPoint> = {
-  Himalayan: { x: 170, y: 140, label: 'Himalayan', side: 'above' },
-  'Indo-Gangetic Plains': { x: 185, y: 192, label: 'Indo-Gangetic', side: 'right' },
-  'Arid & Desert': { x: 75, y: 205, label: 'Arid & Desert', side: 'below' },
-  'North-East India': { x: 350, y: 200, label: 'North-East', side: 'below' },
-  'Pan-India': { x: 290, y: 238, label: 'Pan-India', side: 'right' },
-  Coastal: { x: 232, y: 268, label: 'Coastal', side: 'left' },
-  'Deccan Plateau': { x: 140, y: 285, label: 'Deccan', side: 'left' },
-  'Eastern Ghats': { x: 178, y: 322, label: 'Eastern Ghats', side: 'right' },
-  'Western Ghats': { x: 122, y: 348, label: 'Western Ghats', side: 'left' },
+  // A real place inside each belt — Kullu, Awadh, the Thar, upper Assam, the
+  // Odisha coast, the northern Deccan, the Karnataka Ghats, the Tamil Nadu
+  // hills — nudged so each circle clears the coastline at its full size.
+  Himalayan: { lon: 77.4, lat: 31.6, label: 'Himalayan', side: 'above' },
+  'Indo-Gangetic Plains': { lon: 81.2, lat: 26.2, label: 'Indo-Gangetic', side: 'right' },
+  'Arid & Desert': { lon: 71.6, lat: 26.6, label: 'Arid & Desert', side: 'left' },
+  'North-East India': { lon: 93.4, lat: 26.2, label: 'North-East', side: 'above' },
+  'Pan-India': { lon: 79.0, lat: 22.5, label: 'Pan-India', side: 'right' },
+  Coastal: { lon: 83.5, lat: 19.7, label: 'Coastal', side: 'right' },
+  'Deccan Plateau': { lon: 77.0, lat: 17.6, label: 'Deccan', side: 'left' },
+  'Eastern Ghats': { lon: 79.2, lat: 13.4, label: 'Eastern Ghats', side: 'right' },
+  'Western Ghats': { lon: 76.6, lat: 13.2, label: 'Western Ghats', side: 'left' },
 }
