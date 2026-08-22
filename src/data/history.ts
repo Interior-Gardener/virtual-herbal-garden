@@ -1669,4 +1669,333 @@ export const PLANT_HISTORY: Record<string, PlantHistory> = {
     lore:
       'Eaten as a monsoon green in Maharashtra and Karnataka before it is ever taken as a medicine, on the reasoning that the season that swells the body also supplies its remedy.',
   },
+
+  lotus: {
+    origin:
+      'Native across Asia from the Caspian to Japan, and in Indian water since before there was writing to record it.',
+    originEra: 'Indus & Vedic',
+    firstRecord: {
+      when: 'c. 1500–1000 BCE',
+      sortYear: -1200,
+      source: 'Rigveda and Harappan seal imagery',
+      detail:
+        'The lotus appears as an image before it appears as a drug — on Harappan seals, then as the Vedic emblem of birth and purity.',
+    },
+    timeline: [
+      {
+        when: 'c. 2600–1900 BCE',
+        sortYear: -2200,
+        title: 'On Harappan seals',
+        detail:
+          'Lotus motifs and a lotus-crowned figure appear in Indus valley imagery, the earliest sign of the flower’s standing in Indian culture.',
+        kind: 'archaeology',
+        source: 'Indus valley seal corpus',
+      },
+      {
+        when: 'c. 1500–1000 BCE',
+        sortYear: -1200,
+        title: 'The Vedic emblem',
+        detail:
+          'Vedic hymns use the lotus for what is born of water and unstained by it, fixing an association that every later Indian religion inherited.',
+        kind: 'ritual',
+        source: 'Rigveda',
+      },
+      {
+        when: 'c. 2nd century BCE – 2nd century CE',
+        sortYear: -100,
+        title: 'Every part taken into medicine',
+        detail:
+          'The classical texts give rhizome, seed, stamen and petal separately — cooling, astringent, and used for bleeding, burning and weakness.',
+        kind: 'text',
+        source: 'Charaka Samhita and Sushruta Samhita',
+      },
+      {
+        when: '1950',
+        sortYear: 1950,
+        title: 'Made the national flower',
+        detail:
+          'Independent India took the lotus as its national flower, carrying a symbol thousands of years old into state iconography.',
+        kind: 'policy',
+        source: 'Government of India national symbols',
+      },
+      {
+        when: '1997',
+        sortYear: 1997,
+        title: 'The lotus effect named',
+        detail:
+          'Botanists Barthlott and Neinhuis published the mechanism by which the leaf cleans itself, and self-cleaning surfaces have been engineered from it since.',
+        kind: 'science',
+        source: 'Barthlott and Neinhuis, Planta',
+      },
+    ],
+    etymology:
+      'Sanskrit padma and kamala, both old words for the flower; Nelumbo comes from the Sinhala nelumbu.',
+    spread:
+      'Carried across Asia with Buddhism, which took the lotus seat with it into Tibet, China, Korea and Japan; grown for food in China and Japan as much as for the flower.',
+    lore:
+      'The seat of Lakshmi, Brahma and the Buddha alike, and the standard Indian image for living in the world without being marked by it — rooted in mud, flowering clean.',
+  },
+
+  sadaphuli: {
+    origin:
+      'Native to Madagascar and nowhere else, though it now grows wild on waste ground across the Indian tropics.',
+    originEra: 'Colonial era',
+    firstRecord: {
+      when: '1757',
+      sortYear: 1757,
+      source: 'Linnaeus, as Vinca rosea',
+      detail:
+        'Described by Linnaeus from cultivated material; it reached Indian gardens through the same colonial plant trade.',
+    },
+    timeline: [
+      {
+        when: '1757',
+        sortYear: 1757,
+        title: 'Named by Linnaeus',
+        detail:
+          'Described as Vinca rosea from plants already circulating in European hothouses, having left Madagascar with traders.',
+        kind: 'science',
+        source: 'Linnaean botany',
+      },
+      {
+        when: '18th–19th centuries',
+        sortYear: 1800,
+        title: 'Naturalised in India',
+        detail:
+          'Spread through gardens and then onto roadsides and coastal sand, becoming so common that it entered Indian folk practice as a local plant.',
+        kind: 'trade',
+        source: 'Colonial botanical surveys',
+      },
+      {
+        when: '1950s',
+        sortYear: 1955,
+        title: 'Tested for the folk diabetes claim',
+        detail:
+          'Reports of the leaf being used for diabetes in Jamaica and the Philippines sent Canadian and American laboratories to the plant. It did not lower blood sugar in their animals — it destroyed white blood cells.',
+        kind: 'science',
+        source: 'Noble and Beer, University of Western Ontario',
+      },
+      {
+        when: '1958–1963',
+        sortYear: 1961,
+        title: 'Vinblastine and vincristine isolated',
+        detail:
+          'That accidental finding produced two alkaloids that became frontline treatment for Hodgkin lymphoma and childhood leukaemia, turning near-certain deaths into survivable illnesses.',
+        kind: 'science',
+        source: 'Eli Lilly and University of Western Ontario research programmes',
+      },
+      {
+        when: '1990s–present',
+        sortYear: 1995,
+        title: 'The benefit-sharing argument',
+        detail:
+          'Madagascar received nothing from drugs worth billions, and the case became one of the standard examples cited in the Convention on Biological Diversity debates on sharing the value of genetic resources.',
+        kind: 'policy',
+        source: 'Convention on Biological Diversity literature',
+      },
+    ],
+    etymology:
+      'Sanskrit Nityakalyani and Marathi Sadaphuli both mean the same thing — always in flower, always auspicious. Catharanthus is Greek for pure flower.',
+    spread:
+      'Left Madagascar with 18th-century traders, reached India, the Caribbean and South-East Asia as a garden plant, and escaped into the wild everywhere warm enough.',
+    lore:
+      'Grown at doorways for its unbroken flowering and offered at temples. That an ordinary garden flower turned out to hold two of medicine’s most important drugs is the argument for screening common plants, not only rare ones.',
+  },
+
+  pomegranate: {
+    origin:
+      'Domesticated in Iran and the Caucasus, and grown in the Indian north-west early enough that Sanskrit has its own word for it.',
+    originEra: 'Indus & Vedic',
+    firstRecord: {
+      when: 'c. 3000 BCE',
+      sortYear: -3000,
+      source: 'Bronze Age remains from the Levant and Iran',
+      detail:
+        'Carbonised rind from early Bronze Age sites puts the fruit in cultivation well before it reaches India.',
+    },
+    timeline: [
+      {
+        when: 'c. 3000 BCE',
+        sortYear: -3000,
+        title: 'Cultivated in the Bronze Age west',
+        detail:
+          'Rind and seeds from sites in the Levant, Iran and later Egyptian tombs show the pomegranate as one of the first fruits taken into orchards.',
+        kind: 'archaeology',
+        source: 'Bronze Age excavation reports',
+      },
+      {
+        when: 'c. 2nd century BCE – 2nd century CE',
+        sortYear: -100,
+        title: 'Dadima in the Indian canon',
+        detail:
+          'The classical texts separate sweet from sour fruit and treat them as different drugs, and call dadima tridoshaghna — pacifying all three doshas, which almost nothing else is said to do.',
+        kind: 'text',
+        source: 'Charaka Samhita',
+      },
+      {
+        when: 'c. 1000–1600 CE',
+        sortYear: 1300,
+        title: 'The compound powders fixed',
+        detail:
+          'Medieval texts standardise dadimashtaka churna, the eight-part pomegranate powder still dispensed for digestion and diarrhoea.',
+        kind: 'text',
+        source: 'Sharangadhara Samhita and Bhavaprakasha',
+      },
+      {
+        when: '19th century',
+        sortYear: 1850,
+        title: 'Root bark in European pharmacy',
+        detail:
+          'Pelletierine from the root bark entered western pharmacopoeias as a taeniacide — an Indian and Persian use adopted wholesale.',
+        kind: 'science',
+        source: 'European pharmacopoeial literature',
+      },
+      {
+        when: '2000s–present',
+        sortYear: 2010,
+        title: 'Juice trials, and India as first producer',
+        detail:
+          'Trials of the juice reported modest effects on blood pressure and lipid oxidation, while Maharashtra’s orchards made India the world’s largest producer.',
+        kind: 'trade',
+        source: 'Clinical nutrition literature and Indian horticultural statistics',
+      },
+    ],
+    etymology:
+      'Sanskrit dadima, of uncertain root; Hindi anar comes through Persian. Punica records the Roman name — the Carthaginian, or Phoenician, apple.',
+    spread:
+      'Moved from Iran west into the Mediterranean and east through Afghanistan into India, and was carried to Spain by the Moors and to the Americas by the Spanish.',
+    lore:
+      'A fertility symbol from Greece to China because of its many seeds, and one of the very few drugs Ayurveda considers safe for nearly everybody, in nearly every condition.',
+  },
+
+  babul: {
+    origin:
+      'Native across dry Africa, Arabia and the Indian subcontinent, and so at home on the Indian plains that it defines their look.',
+    originEra: 'Indus & Vedic',
+    firstRecord: {
+      when: 'c. 1000–800 BCE',
+      sortYear: -900,
+      source: 'Atharvaveda',
+      detail:
+        'Babbula appears among the trees named in Vedic literature, chiefly for its wood and its astringency.',
+    },
+    timeline: [
+      {
+        when: 'c. 1000–800 BCE',
+        sortYear: -900,
+        title: 'Named in Vedic literature',
+        detail: 'The thorn tree appears in Vedic texts as a source of hard timber and of astringent bark.',
+        kind: 'text',
+        source: 'Atharvaveda',
+      },
+      {
+        when: 'c. 2nd century BCE – 2nd century CE',
+        sortYear: -100,
+        title: 'The bark and the twig',
+        detail:
+          'The classical texts give babul bark for loose gums, mouth ulcers, diarrhoea and bleeding, and the twig as a chewing stick — the datun most Indians still recognise.',
+        kind: 'text',
+        source: 'Sushruta Samhita',
+      },
+      {
+        when: 'c. 1500 BCE onward',
+        sortYear: -1500,
+        title: 'The gum trade',
+        detail:
+          'Gum from Acacia species moved out of Africa and Arabia into Egypt and the Mediterranean, used in inks, dyes and medicines, and the Indian tree supplied the same gum locally.',
+        kind: 'trade',
+        source: 'Ancient Near Eastern trade records',
+      },
+      {
+        when: '19th century',
+        sortYear: 1870,
+        title: 'Planted for tannin and fuel',
+        detail:
+          'Colonial forestry planted babul heavily across the dry plains for tanbark, fuel and railway sleepers, spreading it far beyond its earlier range.',
+        kind: 'policy',
+        source: 'Indian Forest Department records',
+      },
+      {
+        when: '2005',
+        sortYear: 2005,
+        title: 'Renamed Vachellia',
+        detail:
+          'A contested reclassification split the old genus Acacia and moved this tree to Vachellia — which is why floras and pharmacopoeias now disagree about its name.',
+        kind: 'science',
+        source: 'International Botanical Congress decision on Acacia',
+      },
+    ],
+    etymology:
+      'Sanskrit babbula, giving Hindi babul; kikar is the Punjabi name. Nilotica records the Nile, where Europeans first described it.',
+    spread:
+      'Native from Africa to India, and planted well beyond that for tannin and fuel — successfully enough that it is now an invasive weed in Australia and parts of Africa.',
+    lore:
+      'The tree of hard country: a village toothbrush, a gum, a tannin and a fodder in one, and the shade of choice where nothing else will grow.',
+  },
+
+  hibiscus: {
+    origin:
+      'A cultigen with no wild population, most likely raised in southern China or the Pacific and grown in India for many centuries.',
+    originEra: 'Medieval Nighantu',
+    firstRecord: {
+      when: 'c. 700–1200 CE',
+      sortYear: 1000,
+      source: 'Ayurvedic nighantu literature and temple practice',
+      detail:
+        'Japa enters the Indian record as a temple flower and a hair medicine rather than as a wild plant.',
+    },
+    timeline: [
+      {
+        when: 'c. 700–1200 CE',
+        sortYear: 1000,
+        title: 'Japa in the lexicons',
+        detail:
+          'Medieval Ayurvedic texts name japa for the hair, for the heart and for menstrual complaints, and describe the flower boiled in oil.',
+        kind: 'text',
+        source: 'Ayurvedic nighantu literature',
+      },
+      {
+        when: 'c. 1000–1700 CE',
+        sortYear: 1400,
+        title: 'The offering to Kali',
+        detail:
+          'The red flower becomes fixed as the offering to Kali and to Ganesha, which is why it is planted at temples across the south and east.',
+        kind: 'ritual',
+        source: 'Tantric and temple ritual manuals',
+      },
+      {
+        when: '1753',
+        sortYear: 1753,
+        title: 'Named rosa-sinensis',
+        detail:
+          'Linnaeus named it the rose of China, from material in European cultivation; no wild ancestor has ever been found.',
+        kind: 'science',
+        source: 'Linnaean botany',
+      },
+      {
+        when: '19th century',
+        sortYear: 1850,
+        title: 'The shoe flower',
+        detail:
+          'Colonial households found the crushed petals blacked leather, and the English name shoe flower stuck in India even as the Ayurvedic use continued unbroken.',
+        kind: 'trade',
+        source: 'Colonial-era Indian glossaries',
+      },
+      {
+        when: '1990s–present',
+        sortYear: 2005,
+        title: 'The hair claims tested',
+        detail:
+          'Indian studies of leaf and flower extracts reported faster hair regrowth in animals than minoxidil controls; human trials are still lacking, so the household use rests where it always did.',
+        kind: 'science',
+        source: 'Indian pharmacognosy studies on Hibiscus rosa-sinensis',
+      },
+    ],
+    etymology:
+      'Sanskrit japa, from the word for muttered prayer — the flower of repeated offering. Marathi jaswand and Hindi gudhal are unrelated local names.',
+    spread:
+      'Moved through the Pacific and Asia entirely by cultivation, since it sets little viable seed; carried onward by British and Dutch gardeners to every warm colony.',
+    lore:
+      'Offered to Kali, worn in the hair in Tamil Nadu and Kerala, and boiled into the coconut oil that is the country’s oldest continuing hair treatment.',
+  },
 }

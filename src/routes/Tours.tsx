@@ -96,7 +96,7 @@ export default function Tours() {
           My Garden so you can see what is left.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link to="/">
+          <Link to="/garden">
             <Button variant="primary" icon="map">
               Enter the garden
             </Button>

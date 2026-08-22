@@ -6,7 +6,9 @@ import { Icon } from './components/ui/Icon'
 import { useCalmMotion } from './components/motion/Reveal'
 
 // The 3D routes carry three.js; keep them out of the initial bundle.
+const Gateway = lazy(() => import('./routes/Gateway'))
 const Garden = lazy(() => import('./routes/Garden'))
+const Vanaspatyam = lazy(() => import('./routes/Vanaspatyam'))
 const TourPage = lazy(() => import('./routes/TourPage'))
 const PlantPage = lazy(() => import('./routes/PlantPage'))
 const Explore = lazy(() => import('./routes/Explore'))
@@ -28,7 +30,12 @@ function RouteFallback() {
  * a crossfade on top of them only muddies the picture. Everything else
  * gets a short rise-and-fade between pages. */
 function isImmersive(pathname: string) {
-  return pathname === '/' || pathname.startsWith('/tours/')
+  return (
+    pathname === '/' ||
+    pathname === '/garden' ||
+    pathname === '/vanaspatyam' ||
+    pathname.startsWith('/tours/')
+  )
 }
 
 function AnimatedRoutes() {
@@ -48,7 +55,10 @@ function AnimatedRoutes() {
       >
         <Suspense fallback={<RouteFallback />}>
           <Routes location={location}>
-            <Route path="/" element={<Garden />} />
+            {/* The doorway: two gardens, and you pick one. */}
+            <Route path="/" element={<Gateway />} />
+            <Route path="/garden" element={<Garden />} />
+            <Route path="/vanaspatyam" element={<Vanaspatyam />} />
             <Route path="/explore" element={<Explore />} />
             <Route path="/atlas" element={<Atlas />} />
             <Route path="/compare" element={<Compare />} />

@@ -6,7 +6,7 @@ import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdli
 import { BED_RADIUS, gardenBeds } from '../data/plants'
 import { GARDEN_EXTENT } from './gardenTexture'
 import { useGarden } from '../store/useGarden'
-import type { Placement } from './GardenScene'
+import type { Plant } from '../types/plant'
 
 /* ------------------------------------------------------------------ *
  * Walking the garden.
@@ -25,8 +25,18 @@ const RUN_SPEED = 4.9
 /** The crosshair only names things within conversational distance. */
 const REACH = 7.5
 
-/** Circles that cannot be walked through, in the XZ plane. */
-const OBSTACLES: { x: number; z: number; r: number }[] = [
+/** Something you cannot walk through, in the XZ plane. */
+export type Obstacle =
+  | { kind?: 'circle'; x: number; z: number; r: number }
+  | { kind: 'rect'; x: number; z: number; halfX: number; halfZ: number }
+
+/** Where the walk is fenced in. */
+export type Bounds =
+  | { kind?: 'circle'; r: number }
+  | { kind: 'rect'; halfX: number; halfZ: number; x?: number; z?: number }
+
+/** The main garden's own furniture, used when a scene names nothing else. */
+const DEFAULT_OBSTACLES: Obstacle[] = [
   ...gardenBeds.map((bed) => ({ x: bed.position[0], z: bed.position[1], r: BED_RADIUS })),
   // The basin at the centre of the plaza. The kerb ringing the plaza itself
   // is only 6cm proud, so that one is walked over rather than around.
@@ -34,7 +44,7 @@ const OBSTACLES: { x: number; z: number; r: number }[] = [
 ]
 
 /** Stop short of the edge, where the ground texture fades out into haze. */
-const FENCE = GARDEN_EXTENT - 1.1
+const DEFAULT_BOUNDS: Bounds = { r: GARDEN_EXTENT - 1.1 }
 
 const KEY_MAP: Record<string, 'forward' | 'back' | 'left' | 'right'> = {
   KeyW: 'forward',
@@ -55,8 +65,20 @@ const AXIS = new THREE.Vector3()
  * obstacles here are far enough apart that none of them overlap, so a
  * single pass always settles.
  */
-function resolve(p: THREE.Vector2) {
-  for (const o of OBSTACLES) {
+function resolve(p: THREE.Vector2, obstacles: Obstacle[], bounds: Bounds) {
+  for (const o of obstacles) {
+    if (o.kind === 'rect') {
+      // Push out along whichever face is nearest — for a kerbed bed that is
+      // the shortest way back onto the path.
+      const dx = p.x - o.x
+      const dz = p.y - o.z
+      const overX = o.halfX + BODY - Math.abs(dx)
+      const overZ = o.halfZ + BODY - Math.abs(dz)
+      if (overX <= 0 || overZ <= 0) continue
+      if (overX < overZ) p.x += Math.sign(dx || 1) * overX
+      else p.y += Math.sign(dz || 1) * overZ
+      continue
+    }
     const dx = p.x - o.x
     const dz = p.y - o.z
     const min = o.r + BODY
@@ -70,11 +92,25 @@ function resolve(p: THREE.Vector2) {
     }
     p.set(o.x + (dx / d) * min, o.z + (dz / d) * min)
   }
-  if (p.lengthSq() > FENCE * FENCE) p.setLength(FENCE)
+  if (bounds.kind === 'rect') {
+    const cx = bounds.x ?? 0
+    const cz = bounds.z ?? 0
+    p.x = THREE.MathUtils.clamp(p.x, cx - bounds.halfX, cx + bounds.halfX)
+    p.y = THREE.MathUtils.clamp(p.y, cz - bounds.halfZ, cz + bounds.halfZ)
+  } else if (p.lengthSq() > bounds.r * bounds.r) {
+    p.setLength(bounds.r)
+  }
+}
+
+/** The minimum a scene must say about a specimen for it to be aimed at. */
+export interface WalkTarget {
+  plant: Plant
+  position: [number, number, number]
+  scale: number
 }
 
 interface WalkControlsProps {
-  placements: Placement[]
+  placements: WalkTarget[]
   /** Fired when pointer lock ends: Esc, alt-tab, or the browser deciding so. */
   onExit: () => void
   /** The plant under the crosshair, or null. */
@@ -82,9 +118,24 @@ interface WalkControlsProps {
   onSelect: (plantId: string) => void
   /** Clicked on nothing in particular. */
   onDismiss?: () => void
+  /** What blocks the feet. Defaults to the main garden's beds and basin. */
+  obstacles?: Obstacle[]
+  /** Where the walk is fenced in. Defaults to the main garden's circle. */
+  bounds?: Bounds
+  /** Where to stand on entering, when the scene wants a particular spot. */
+  start?: [number, number]
 }
 
-export function WalkControls({ placements, onExit, onAim, onSelect, onDismiss }: WalkControlsProps) {
+export function WalkControls({
+  placements,
+  onExit,
+  onAim,
+  onSelect,
+  onDismiss,
+  obstacles = DEFAULT_OBSTACLES,
+  bounds = DEFAULT_BOUNDS,
+  start,
+}: WalkControlsProps) {
   const { camera, gl } = useThree()
   const reducedMotion = useGarden((s) => s.reducedMotion)
 
@@ -119,10 +170,15 @@ export function WalkControls({ placements, onExit, onAim, onSelect, onDismiss }:
    * the garden, drop to standing height, and level the view so nobody starts
    * off staring at their own feet. */
   useEffect(() => {
-    const from = new THREE.Vector2(camera.position.x, camera.position.z)
-    if (from.lengthSq() < 0.04) from.set(0, 1)
-    const stance = from.clone().setLength(Math.min(from.length(), FENCE))
-    resolve(stance)
+    const stance = start
+      ? new THREE.Vector2(start[0], start[1])
+      : (() => {
+          const from = new THREE.Vector2(camera.position.x, camera.position.z)
+          if (from.lengthSq() < 0.04) from.set(0, 1)
+          const reach = bounds.kind === 'rect' ? Math.min(bounds.halfX, bounds.halfZ) : bounds.r
+          return from.clone().setLength(Math.min(from.length(), reach))
+        })()
+    resolve(stance, obstacles, bounds)
     feet.current.copy(stance)
 
     /* Face the middle of the garden, level. This is set as a bare yaw rather
@@ -136,7 +192,9 @@ export function WalkControls({ placements, onExit, onAim, onSelect, onDismiss }:
     // A camera with no rotation looks down -Z, so yaw runs the other way.
     const yaw = Math.atan2(-inward.x, -inward.y)
     camera.quaternion.setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ'))
-  }, [camera])
+    // Obstacles and bounds are per-scene constants; listing them keeps the
+    // stance honest if a scene ever starts varying them.
+  }, [camera, obstacles, bounds, start])
 
   /* Take the pointer. drei only locks on a *subsequent* click, but the click
    * that turned walk mode on is the one that should have counted — and this
@@ -249,7 +307,7 @@ export function WalkControls({ placements, onExit, onAim, onSelect, onDismiss }:
     const speed = velocity.current.length()
     if (speed > 0.01) {
       feet.current.addScaledVector(velocity.current, delta)
-      resolve(feet.current)
+      resolve(feet.current, obstacles, bounds)
     }
 
     // The gait: a shallow rise and fall, twice per stride, scaled by how fast

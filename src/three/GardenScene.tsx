@@ -173,7 +173,7 @@ function CameraRig({
  * gets colour management and `toneMapped` handled for it, and 96 pixels
  * cost nothing to repaint when the hour changes.
  */
-function SkyDome({ zenith, horizon }: { zenith: string; horizon: string }) {
+export function SkyDome({ zenith, horizon }: { zenith: string; horizon: string }) {
   const mesh = useRef<THREE.Mesh>(null)
 
   const { texture, paint } = useMemo(() => {

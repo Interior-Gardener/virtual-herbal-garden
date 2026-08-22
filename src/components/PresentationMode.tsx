@@ -26,7 +26,7 @@ interface Scene {
 
 export const SCENES: Scene[] = [
   {
-    route: '/',
+    route: '/garden',
     eyebrow: 'The garden',
     caption: 'Twenty-five AYUSH medicinal plants, growing in a garden you can walk through.',
     say: 'Welcome to Vanaspati, a virtual herbal garden. Twenty-five medicinal plants of the AYUSH tradition, laid out in six themed beds you can walk through.',
@@ -96,7 +96,7 @@ export const SCENES: Scene[] = [
     seconds: 11,
   },
   {
-    route: '/',
+    route: '/garden',
     eyebrow: 'Vanaspati',
     caption: 'A herbal garden that scales by writing botany, not by modelling it.',
     say: 'Adding the next hundred plants means writing their botany, not modelling them. That is the idea the whole project rests on. Thank you.',

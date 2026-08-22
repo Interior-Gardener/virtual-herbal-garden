@@ -9,7 +9,7 @@ import { Walkthrough } from './Walkthrough'
 import { PresentationMode } from './PresentationMode'
 
 const NAV: { to: string; label: string; icon: IconName }[] = [
-  { to: '/', label: 'Garden', icon: 'map' },
+  { to: '/garden', label: 'Garden', icon: 'map' },
   { to: '/explore', label: 'Explore', icon: 'grid' },
   { to: '/atlas', label: 'Atlas', icon: 'layers' },
   { to: '/tours', label: 'Tours', icon: 'route' },
@@ -142,7 +142,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [presenting, setPresenting] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const immersive = location.pathname === '/' || location.pathname.startsWith('/tours/')
+  const immersive =
+    location.pathname === '/' ||
+    location.pathname === '/garden' ||
+    location.pathname === '/vanaspatyam' ||
+    location.pathname.startsWith('/tours/')
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
@@ -192,7 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setPresenting(false)
     setWalkthroughOpen(false)
     setIntroSeen(false)
-    navigate('/')
+    navigate('/garden')
   }
 
   return (
@@ -206,7 +210,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === '/'}
+                end={item.to === '/garden'}
                 className={({ isActive }) =>
                   cx(
                     'relative rounded-full px-3.5 py-2 text-[0.85rem] font-medium transition-colors duration-200',
@@ -271,7 +275,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/'}
+              end={item.to === '/garden'}
               className={({ isActive }) =>
                 cx(
                   'flex flex-1 flex-col items-center gap-1 py-2.5 text-[0.6rem] font-medium transition-colors',

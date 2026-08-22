@@ -328,7 +328,7 @@ function SettingsTab() {
             icon="sparkle"
             onClick={() => {
               setIntroSeen(false)
-              navigate('/')
+              navigate('/garden')
             }}
           >
             Replay the opening

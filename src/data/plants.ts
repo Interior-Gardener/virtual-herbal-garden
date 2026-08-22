@@ -2,11 +2,12 @@ import type { OriginEra, Plant, RegionTag, TherapeuticTag } from '../types/plant
 import { plantsPart1 } from './plants.part1'
 import { plantsPart2 } from './plants.part2'
 import { plantsPart3 } from './plants.part3'
+import { plantsPart4 } from './plants.part4'
 import { PLANT_HISTORY } from './history'
 import { PLANT_PHOTOS } from './photos'
 
 // Botany and history are written and reviewed separately, then joined here.
-export const plants: Plant[] = [...plantsPart1, ...plantsPart2, ...plantsPart3].map((entry) => {
+export const plants: Plant[] = [...plantsPart1, ...plantsPart2, ...plantsPart3, ...plantsPart4].map((entry) => {
   const history = PLANT_HISTORY[entry.id]
   // Loud at module load rather than a blank panel three clicks in.
   if (!history) throw new Error(`No history written for plant "${entry.id}"`)
@@ -45,7 +46,7 @@ export const gardenBeds: GardenBed[] = [
     theme: 'Digestion & the gut',
     accent: '#d9a13c',
     position: [-7.2, -6.4],
-    plantIds: ['ginger', 'mint', 'bael', 'fenugreek'],
+    plantIds: ['ginger', 'mint', 'bael', 'fenugreek', 'pomegranate'],
   },
   {
     id: 'immunity',
@@ -61,7 +62,7 @@ export const gardenBeds: GardenBed[] = [
     theme: 'Skin, hair & wounds',
     accent: '#c9743f',
     position: [7.2, -6.4],
-    plantIds: ['neem', 'aloe-vera', 'turmeric', 'henna', 'bhringraj'],
+    plantIds: ['neem', 'aloe-vera', 'turmeric', 'henna', 'bhringraj', 'hibiscus'],
   },
   {
     id: 'respiratory',
@@ -69,7 +70,7 @@ export const gardenBeds: GardenBed[] = [
     theme: 'Breath & lungs',
     accent: '#4aa3a8',
     position: [-7.2, 6.4],
-    plantIds: ['vasaka', 'lemongrass', 'mulethi', 'kalmegh'],
+    plantIds: ['vasaka', 'lemongrass', 'mulethi', 'kalmegh', 'babul'],
   },
   {
     id: 'mind',
@@ -85,7 +86,7 @@ export const gardenBeds: GardenBed[] = [
     theme: 'Heart, joints & renewal',
     accent: '#b95a72',
     position: [7.2, 6.4],
-    plantIds: ['arjuna', 'guggulu', 'punarnava', 'shatavari'],
+    plantIds: ['arjuna', 'guggulu', 'punarnava', 'shatavari', 'lotus', 'sadaphuli'],
   },
 ]
 
