@@ -1,8 +1,8 @@
-import type { Plant } from '../types/plant'
+import type { PlantEntry } from '../types/plant'
 
 /* Vanaspati plant compendium — part 2. */
 
-export const plantsPart2: Plant[] = [
+export const plantsPart2: PlantEntry[] = [
   {
     id: 'giloy',
     name: 'Giloy',

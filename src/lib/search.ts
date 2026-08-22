@@ -1,6 +1,7 @@
 import type {
   AyushSystem,
   Conservation,
+  OriginEra,
   Plant,
   PlantType,
   RegionTag,
@@ -22,6 +23,7 @@ export interface Filters {
   types: PlantType[]
   parts: string[]
   conservation: Conservation[]
+  eras: OriginEra[]
   bookmarkedOnly: boolean
 }
 
@@ -32,6 +34,7 @@ export const emptyFilters: Filters = {
   types: [],
   parts: [],
   conservation: [],
+  eras: [],
   bookmarkedOnly: false,
 }
 
@@ -43,11 +46,12 @@ export function countActiveFilters(f: Filters): number {
     f.types.length +
     f.parts.length +
     f.conservation.length +
+    f.eras.length +
     (f.bookmarkedOnly ? 1 : 0)
   )
 }
 
-export type SortMode = 'relevance' | 'alpha' | 'easiest' | 'rarest'
+export type SortMode = 'relevance' | 'alpha' | 'easiest' | 'rarest' | 'oldest'
 
 interface IndexEntry {
   plant: Plant
@@ -86,6 +90,13 @@ function buildIndex(plants: Plant[]): IndexEntry[] {
       ...plant.uses.flatMap((u) => [u.title, u.detail]),
       ...plant.preparations.map((p) => p.name),
       ...plant.facts,
+      plant.history.origin,
+      plant.history.etymology,
+      plant.history.spread,
+      plant.history.lore,
+      plant.history.firstRecord.source,
+      plant.history.firstRecord.detail,
+      ...plant.history.timeline.flatMap((e) => [e.title, e.detail, e.source, e.when]),
       plant.ayurvedic.rasa.join(' '),
       plant.ayurvedic.dosha,
     ]
@@ -157,6 +168,7 @@ function matchesFilters(plant: Plant, filters: Filters, bookmarks: Set<string>):
   if (filters.types.length && !filters.types.includes(plant.type)) return false
   if (filters.parts.length && !filters.parts.some((p) => plant.partsUsed.includes(p))) return false
   if (filters.conservation.length && !filters.conservation.includes(plant.conservation)) return false
+  if (filters.eras.length && !filters.eras.includes(plant.history.originEra)) return false
   return true
 }
 
@@ -196,6 +208,14 @@ export function searchPlants(plants: Plant[], options: SearchOptions): Plant[] {
       break
     case 'easiest':
       scored.sort((a, b) => a.plant.difficulty - b.plant.difficulty || a.plant.name.localeCompare(b.plant.name))
+      break
+    case 'oldest':
+      // Earliest attested first; the sortYear is signed, so BCE sorts ahead.
+      scored.sort(
+        (a, b) =>
+          a.plant.history.firstRecord.sortYear - b.plant.history.firstRecord.sortYear ||
+          a.plant.name.localeCompare(b.plant.name),
+      )
       break
     case 'rarest':
       scored.sort(

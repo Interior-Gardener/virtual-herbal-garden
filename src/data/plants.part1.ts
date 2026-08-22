@@ -1,4 +1,4 @@
-import type { Plant } from '../types/plant'
+import type { PlantEntry } from '../types/plant'
 
 /* ------------------------------------------------------------------ *
  * Vanaspati plant compendium — part 1.
@@ -7,7 +7,7 @@ import type { Plant } from '../types/plant'
  * vipaka (post-digestive effect) and doshic action.
  * ------------------------------------------------------------------ */
 
-export const plantsPart1: Plant[] = [
+export const plantsPart1: PlantEntry[] = [
   {
     id: 'tulsi',
     name: 'Tulsi',

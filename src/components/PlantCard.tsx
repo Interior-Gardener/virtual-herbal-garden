@@ -43,6 +43,9 @@ export function PlantCard({ plant, layout = 'grid', index = 0 }: PlantCardProps)
             <span className="truncate text-xs text-ink-faint italic">{plant.botanical}</span>
           </div>
           <p className="mt-0.5 line-clamp-1 text-[0.82rem] text-ink-soft">{plant.tagline}</p>
+          <p className="mt-0.5 truncate text-[0.7rem] text-ink-faint">
+            First recorded {plant.history.firstRecord.when} · {plant.history.firstRecord.source}
+          </p>
         </div>
         <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
           {plant.therapeutic.slice(0, 2).map((t) => (
@@ -72,10 +75,31 @@ export function PlantCard({ plant, layout = 'grid', index = 0 }: PlantCardProps)
             background: `radial-gradient(120% 100% at 50% 108%, color-mix(in srgb, ${plant.accent} 26%, transparent) 0%, color-mix(in srgb, ${plant.accent} 7%, var(--surface-sunken)) 62%, var(--surface-sunken) 100%)`,
           }}
         >
-          <BotanicalPlate
-            plant={plant}
-            className="absolute inset-0 size-full p-3 transition-transform duration-700 ease-[var(--ease-out-expo)] group-hover:scale-[1.06]"
-          />
+          {/* The drawn plate, and beside it photographs of the living plant —
+              the illustration says what the species is, the photographs say
+              what it actually looks like in the ground. */}
+          <div className="absolute inset-0 flex">
+            <div className="relative min-w-0 flex-1">
+              <BotanicalPlate
+                plant={plant}
+                className="absolute inset-0 size-full p-3 transition-transform duration-700 ease-[var(--ease-out-expo)] group-hover:scale-[1.06]"
+              />
+            </div>
+            {plant.photos.length > 0 && (
+              <div className="flex w-[34%] shrink-0 flex-col gap-px border-l border-black/10 bg-black/10">
+                {plant.photos.slice(0, 3).map((photo) => (
+                  <img
+                    key={photo.src}
+                    src={photo.src}
+                    alt={photo.alt}
+                    loading="lazy"
+                    decoding="async"
+                    className="min-h-0 w-full flex-1 object-cover transition-transform duration-700 ease-[var(--ease-out-expo)] group-hover:scale-[1.04]"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
           <span
             className="absolute top-3 left-3 rounded-full px-2.5 py-1 text-[0.68rem] font-semibold tracking-wide backdrop-blur-sm"
             style={{
@@ -120,6 +144,12 @@ export function PlantCard({ plant, layout = 'grid', index = 0 }: PlantCardProps)
               </span>
             ))}
           </div>
+          <p className="flex items-baseline gap-1.5 border-t border-line pt-2 text-[0.7rem] text-ink-faint">
+            <span className="font-semibold tracking-wide uppercase">First recorded</span>
+            <span className="truncate">
+              {plant.history.firstRecord.when} · {plant.history.firstRecord.source}
+            </span>
+          </p>
         </div>
       </Link>
 

@@ -130,6 +130,61 @@ export interface AyurvedicProfile {
   dosha: string
 }
 
+/**
+ * Coarse era buckets — when the plant enters *Indian* use, which is not
+ * always when it is first recorded anywhere. Mint is written down in
+ * Mycenaean Greece but only reaches Indian medicine with Unani practice.
+ */
+export type OriginEra =
+  | 'Indus & Vedic'
+  | 'Classical Samhita'
+  | 'Medieval Nighantu'
+  | 'Colonial era'
+  | 'Modern'
+
+export type HistoryKind = 'text' | 'archaeology' | 'trade' | 'ritual' | 'science' | 'policy'
+
+export interface HistoryEvent {
+  /** Human-readable and deliberately hedged: "c. 1500–1200 BCE". */
+  when: string
+  /** Signed year for ordering only — negative is BCE. */
+  sortYear: number
+  title: string
+  detail: string
+  kind: HistoryKind
+  /** The text, site or publication this rests on. */
+  source: string
+}
+
+/**
+ * Where a plant comes from and how it entered use.
+ *
+ * Dates in this tradition are contested — the Charaka Samhita is placed
+ * anywhere from the 2nd century BCE to the 2nd century CE depending on
+ * whose chronology you follow — so every date is a hedged string tied to
+ * a named source, and `sortYear` exists only to put events in order.
+ */
+export interface PlantHistory {
+  /** Native range, and where the plant was first taken into use. */
+  origin: string
+  /** When it enters Indian use. */
+  originEra: OriginEra
+  /** The earliest record anywhere, which may well be outside India. */
+  firstRecord: {
+    when: string
+    sortYear: number
+    source: string
+    detail: string
+  }
+  timeline: HistoryEvent[]
+  /** Where the name comes from and what it means. */
+  etymology: string
+  /** How it travelled — trade routes, colonial transfer, diaspora. */
+  spread: string
+  /** Ritual, mythological or cultural standing. */
+  lore: string
+}
+
 export interface Plant {
   id: string
   name: string
@@ -161,11 +216,33 @@ export interface Plant {
   precautions: string[]
   conservation: Conservation
   facts: string[]
+  history: PlantHistory
+  photos: PlantPhoto[]
   /** 1 = windowsill-easy, 3 = specialist. */
   difficulty: 1 | 2 | 3
   accent: string
   model: PlantModelSpec
 }
+
+/**
+ * A photograph of the living plant, saved into the repo so the garden
+ * works offline. Every file is freely licensed; the credit and the link
+ * back to its source page are kept because the licences require it and
+ * because a reader should be able to check the identification.
+ */
+export interface PlantPhoto {
+  /** Path under public/, e.g. "/photos/tulsi-1.jpg". */
+  src: string
+  /** What the photo shows — used as the alt text. */
+  alt: string
+  credit: string
+  license: string
+  /** The Wikimedia Commons file page this came from. */
+  source: string
+}
+
+/** A compendium entry before its history is attached — see data/plants.ts. */
+export type PlantEntry = Omit<Plant, 'history' | 'photos'>
 
 export interface TourStop {
   plantId: string

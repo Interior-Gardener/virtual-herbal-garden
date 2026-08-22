@@ -11,14 +11,15 @@ import { useGarden } from '../store/useGarden'
 import { useNarrator } from '../lib/speech'
 import { plantAsText, sharePlant, socialTargets } from '../lib/share'
 import type { PlateVariant } from '../lib/plate'
-import type { Plant } from '../types/plant'
+import type { HistoryKind, Plant } from '../types/plant'
 
-type TabId = 'overview' | 'uses' | 'ayurveda' | 'cultivation' | 'gallery' | 'notes'
+type TabId = 'overview' | 'uses' | 'ayurveda' | 'history' | 'cultivation' | 'gallery' | 'notes'
 
 const TABS: { id: TabId; label: string; icon: IconName }[] = [
   { id: 'overview', label: 'Overview', icon: 'info' },
   { id: 'uses', label: 'Medicinal uses', icon: 'drop' },
   { id: 'ayurveda', label: 'Properties', icon: 'layers' },
+  { id: 'history', label: 'History', icon: 'book' },
   { id: 'cultivation', label: 'Grow it', icon: 'seedling' },
   { id: 'gallery', label: 'Plates & audio', icon: 'eye' },
   { id: 'notes', label: 'My notes', icon: 'note' },
@@ -237,6 +238,7 @@ export default function PlantPage() {
             {tab === 'overview' && <OverviewTab plant={plant} />}
             {tab === 'uses' && <UsesTab plant={plant} />}
             {tab === 'ayurveda' && <AyurvedaTab plant={plant} />}
+            {tab === 'history' && <HistoryTab plant={plant} />}
             {tab === 'cultivation' && <CultivationTab plant={plant} />}
             {tab === 'gallery' && <GalleryTab plant={plant} onCopy={() => setToast('Link copied to clipboard')} />}
             {tab === 'notes' && <NotesTab plant={plant} />}
@@ -345,6 +347,94 @@ function OverviewTab({ plant }: { plant: Plant }) {
           ))}
         </ul>
       </div>
+    </div>
+  )
+}
+
+/** Colour-codes the timeline by what kind of evidence an entry rests on. */
+const HISTORY_KIND: Record<HistoryKind, { label: string; icon: IconName }> = {
+  text: { label: 'Text', icon: 'book' },
+  archaeology: { label: 'Archaeology', icon: 'layers' },
+  trade: { label: 'Trade', icon: 'route' },
+  ritual: { label: 'Ritual', icon: 'sparkle' },
+  science: { label: 'Science', icon: 'drop' },
+  policy: { label: 'Policy', icon: 'alert' },
+}
+
+function HistoryTab({ plant }: { plant: Plant }) {
+  const { history } = plant
+  const events = useMemo(
+    () => [...history.timeline].sort((a, b) => a.sortYear - b.sortYear),
+    [history.timeline],
+  )
+
+  return (
+    <div className="space-y-8">
+      <p className="text-[1rem] leading-[1.75] text-ink-soft text-balance-pretty">{history.origin}</p>
+
+      <dl>
+        <DataRow label="Earliest record anywhere">
+          {history.firstRecord.when} — {history.firstRecord.source}. {history.firstRecord.detail}
+        </DataRow>
+        <DataRow label="Enters Indian use">{history.originEra}</DataRow>
+        <DataRow label="Name">{history.etymology}</DataRow>
+        <DataRow label="How it travelled">{history.spread}</DataRow>
+      </dl>
+
+      <section>
+        <h3 className="font-display text-base font-semibold">Timeline</h3>
+        <ol className="mt-4 space-y-0">
+          {events.map((event) => {
+            const kind = HISTORY_KIND[event.kind]
+            return (
+              <li key={`${event.sortYear}-${event.title}`} className="group relative flex gap-4 pb-6 last:pb-0">
+                {/* The thread running down the timeline, stopped at the last node. */}
+                <span
+                  className="absolute top-8 bottom-0 left-[0.94rem] w-px group-last:hidden"
+                  style={{ background: 'var(--line)' }}
+                  aria-hidden
+                />
+                <span
+                  className="relative z-10 grid size-8 shrink-0 place-items-center rounded-full border border-line bg-raised"
+                  style={{ color: plant.accent }}
+                  title={kind.label}
+                >
+                  <Icon name={kind.icon} size={15} />
+                </span>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                    <span className="font-mono text-[0.78rem] font-medium" style={{ color: plant.accent }}>
+                      {event.when}
+                    </span>
+                    <h4 className="font-display text-[1rem] font-semibold">{event.title}</h4>
+                    <span className="rounded-full bg-sunken px-2 py-0.5 text-[0.66rem] text-ink-faint">
+                      {kind.label}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-[0.92rem] leading-relaxed text-ink-soft text-balance-pretty">
+                    {event.detail}
+                  </p>
+                  <p className="mt-1 text-[0.75rem] text-ink-faint italic">Source: {event.source}</p>
+                </div>
+              </li>
+            )
+          })}
+        </ol>
+      </section>
+
+      <section className="rounded-3xl border border-line bg-sunken p-5">
+        <h3 className="flex items-center gap-2 font-display text-base font-semibold">
+          <Icon name="sparkle" size={16} style={{ color: plant.accent }} />
+          Standing and lore
+        </h3>
+        <p className="mt-2.5 text-[0.92rem] leading-relaxed text-ink-soft text-balance-pretty">{history.lore}</p>
+      </section>
+
+      <p className="border-t border-line pt-3 text-[0.78rem] leading-relaxed text-ink-faint">
+        Dates in this tradition are contested — the classical Sanskrit medical texts cannot be pinned to a year, so
+        ranges are given and each entry names the text, site or study it rests on. Treat this as an orientation to
+        follow up, not a citation.
+      </p>
     </div>
   )
 }
@@ -527,6 +617,43 @@ function GalleryTab({ plant, onCopy }: { plant: Plant; onCopy: () => void }) {
 
   return (
     <div className="space-y-8">
+      {plant.photos.length > 0 && (
+        <section>
+          <h3 className="font-display text-base font-semibold">Photographs</h3>
+          <p className="mt-1 text-[0.85rem] text-ink-soft">
+            The living plant, so the drawn plate can be checked against it. Every photograph is freely licensed and
+            stored with the site, and each one credits its photographer and links back to where it came from.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {plant.photos.map((photo) => (
+              <figure key={photo.src} className="overflow-hidden rounded-2xl border border-line bg-sunken">
+                <img
+                  src={photo.src}
+                  alt={photo.alt}
+                  loading="lazy"
+                  decoding="async"
+                  className="aspect-[4/3] w-full object-cover"
+                />
+                <figcaption className="space-y-1 border-t border-line px-3 py-2 text-[0.72rem] leading-snug text-ink-faint">
+                  <span className="block text-ink-soft">{photo.alt}</span>
+                  <span className="block">
+                    {photo.credit} · {photo.license} ·{' '}
+                    <a
+                      href={photo.source}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline underline-offset-2 transition-colors hover:text-ink"
+                    >
+                      source
+                    </a>
+                  </span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section>
         <h3 className="font-display text-base font-semibold">Specimen plates</h3>
         <p className="mt-1 text-[0.85rem] text-ink-soft">

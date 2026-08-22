@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   conservationFacets,
+  eraFacets,
   partFacets,
   plants,
   regionFacets,
@@ -15,7 +16,7 @@ import { Icon } from '../components/ui/Icon'
 import { Button, Chip, EmptyState, Segmented } from '../components/ui/primitives'
 import { useGarden } from '../store/useGarden'
 
-type FacetKey = 'therapeutic' | 'regions' | 'systems' | 'types' | 'parts' | 'conservation'
+type FacetKey = 'therapeutic' | 'regions' | 'systems' | 'types' | 'parts' | 'conservation' | 'eras'
 
 const FACET_GROUPS: { key: FacetKey; label: string; hint: string; facets: { value: string; count: number }[] }[] = [
   { key: 'therapeutic', label: 'Treats', hint: 'What the plant is used for', facets: therapeuticFacets },
@@ -24,6 +25,7 @@ const FACET_GROUPS: { key: FacetKey; label: string; hint: string; facets: { valu
   { key: 'regions', label: 'Region', hint: 'Where it grows in India', facets: regionFacets },
   { key: 'systems', label: 'AYUSH system', hint: 'Traditions that use it', facets: systemFacets },
   { key: 'conservation', label: 'Conservation', hint: 'Wild population status', facets: conservationFacets },
+  { key: 'eras', label: 'Era', hint: 'When it enters Indian use', facets: eraFacets },
 ]
 
 const SORTS: { value: SortMode; label: string }[] = [
@@ -31,6 +33,7 @@ const SORTS: { value: SortMode; label: string }[] = [
   { value: 'alpha', label: 'A–Z' },
   { value: 'easiest', label: 'Easiest to grow' },
   { value: 'rarest', label: 'Rarest first' },
+  { value: 'oldest', label: 'Oldest record first' },
 ]
 
 export default function Explore() {
@@ -117,8 +120,9 @@ export default function Explore() {
           Twenty-five medicinal plants, described the way a vaidya would.
         </h1>
         <p className="mt-3 max-w-2xl text-[0.95rem] leading-relaxed text-ink-soft text-balance-pretty">
-          Search by name, by symptom, by the part that carries the medicine, or by the region where it grows.
-          Every entry carries its Ayurvedic profile, its cultivation calendar, and the cautions that matter.
+          Search by name, by symptom, by the part that carries the medicine, by the region where it grows, or by
+          the century it first turns up in writing. Every entry carries its Ayurvedic profile, its cultivation
+          calendar, its recorded history, and the cautions that matter.
         </p>
       </header>
 

@@ -1,9 +1,17 @@
-import type { Plant, RegionTag, TherapeuticTag } from '../types/plant'
+import type { OriginEra, Plant, RegionTag, TherapeuticTag } from '../types/plant'
 import { plantsPart1 } from './plants.part1'
 import { plantsPart2 } from './plants.part2'
 import { plantsPart3 } from './plants.part3'
+import { PLANT_HISTORY } from './history'
+import { PLANT_PHOTOS } from './photos'
 
-export const plants: Plant[] = [...plantsPart1, ...plantsPart2, ...plantsPart3]
+// Botany and history are written and reviewed separately, then joined here.
+export const plants: Plant[] = [...plantsPart1, ...plantsPart2, ...plantsPart3].map((entry) => {
+  const history = PLANT_HISTORY[entry.id]
+  // Loud at module load rather than a blank panel three clicks in.
+  if (!history) throw new Error(`No history written for plant "${entry.id}"`)
+  return { ...entry, history, photos: PLANT_PHOTOS[entry.id] ?? [] }
+})
 
 export const plantById: ReadonlyMap<string, Plant> = new Map(plants.map((p) => [p.id, p]))
 
@@ -103,6 +111,17 @@ export const systemFacets = tally(plants.map((p) => p.systems))
 export const typeFacets = tally(plants.map((p) => [p.type]))
 export const partFacets = tally(plants.map((p) => p.partsUsed))
 export const conservationFacets = tally(plants.map((p) => [p.conservation]))
+/** Eras read as a sequence, so these stay in time order rather than by count. */
+const ERA_ORDER: OriginEra[] = [
+  'Indus & Vedic',
+  'Classical Samhita',
+  'Medieval Nighantu',
+  'Colonial era',
+  'Modern',
+]
+export const eraFacets = tally<OriginEra>(plants.map((p) => [p.history.originEra])).sort(
+  (a, b) => ERA_ORDER.indexOf(a.value) - ERA_ORDER.indexOf(b.value),
+)
 
 export const therapeuticIcons: Record<TherapeuticTag, string> = {
   Digestive: 'M12 3c3 3 4.5 5.5 4.5 8a4.5 4.5 0 1 1-9 0c0-2.5 1.5-5 4.5-8Z',
