@@ -714,6 +714,9 @@ const WALK_OBSTACLES: Obstacle[] = [
   { x: PYLONS[0].at[0], z: PYLONS[0].at[1], r: 1.5 },
 ]
 
+/** Where a visitor is put down: on the spine, just inside the gate. */
+const WALK_START: [number, number] = [0, GARDEN.gate.z - 1.4]
+
 const WALK_BOUNDS = {
   kind: 'rect' as const,
   halfX: GARDEN.innerX + 0.5,
@@ -914,7 +917,11 @@ function SceneContents({
           onDismiss={onWalkDismiss}
           obstacles={WALK_OBSTACLES}
           bounds={WALK_BOUNDS}
-          start={[0, GARDEN.gate.z - 1.4]}
+          start={WALK_START}
+          /* The plan's cross paths are 1.4 m and the beds are kerbed hard up
+             against them, so the walker has to be slimmer here than in the
+             open main garden or the passages read as sealed. */
+          bodyRadius={0.28}
         />
       ) : (
         <OrbitControls

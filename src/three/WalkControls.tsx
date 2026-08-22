@@ -20,6 +20,12 @@ import type { Plant } from '../types/plant'
 const EYE = 1.62
 /** How close a shoulder gets to a kerb before it stops. */
 const BODY = 0.36
+/**
+ * How far the solver will slide someone sideways to free them. Brushing the
+ * corner of a bed on the way into a narrow path should slip you into the
+ * gap, not stop you dead against a wall you cannot see.
+ */
+const CORNER_ASSIST = 0.45
 const WALK_SPEED = 2.7
 const RUN_SPEED = 4.9
 /** The crosshair only names things within conversational distance. */
@@ -58,6 +64,8 @@ const KEY_MAP: Record<string, 'forward' | 'back' | 'left' | 'right'> = {
 }
 
 const AXIS = new THREE.Vector3()
+/** A standing visitor, for the solver's "which way are you going" test. */
+const ZERO = new THREE.Vector2(0, 0)
 
 /**
  * Slide a ground position out of anything solid, then back inside the
@@ -65,23 +73,48 @@ const AXIS = new THREE.Vector3()
  * obstacles here are far enough apart that none of them overlap, so a
  * single pass always settles.
  */
-function resolve(p: THREE.Vector2, obstacles: Obstacle[], bounds: Bounds) {
+function resolve(
+  p: THREE.Vector2,
+  obstacles: Obstacle[],
+  bounds: Bounds,
+  body: number,
+  motion: THREE.Vector2,
+) {
   for (const o of obstacles) {
     if (o.kind === 'rect') {
-      // Push out along whichever face is nearest — for a kerbed bed that is
-      // the shortest way back onto the path.
       const dx = p.x - o.x
       const dz = p.y - o.z
-      const overX = o.halfX + BODY - Math.abs(dx)
-      const overZ = o.halfZ + BODY - Math.abs(dz)
+      const overX = o.halfX + body - Math.abs(dx)
+      const overZ = o.halfZ + body - Math.abs(dz)
       if (overX <= 0 || overZ <= 0) continue
-      if (overX < overZ) p.x += Math.sign(dx || 1) * overX
+
+      /* Which way to push. The shortest way out is the obvious answer and
+       * usually the right one, but it is wrong in the case that matters
+       * most here: walking west into the mouth of a cross path while a
+       * hair's breadth inside the bed behind you. There the shortest way
+       * out is straight back the way you came, so the path reads as sealed.
+       *
+       * So when someone is moving, push them across their travel instead —
+       * along whichever axis they are moving least — as long as that is a
+       * nudge rather than a shove. That turns clipping a bed corner into
+       * slipping into the gap, which is what a person walking it would do. */
+      const movingX = Math.abs(motion.x)
+      const movingZ = Math.abs(motion.y)
+      const moving = movingX + movingZ > 0.05
+      let alongX = overX < overZ
+      if (moving) {
+        const acrossX = movingX < movingZ
+        const acrossOver = acrossX ? overX : overZ
+        if (acrossOver <= CORNER_ASSIST) alongX = acrossX
+      }
+
+      if (alongX) p.x += Math.sign(dx || 1) * overX
       else p.y += Math.sign(dz || 1) * overZ
       continue
     }
     const dx = p.x - o.x
     const dz = p.y - o.z
-    const min = o.r + BODY
+    const min = o.r + body
     const d2 = dx * dx + dz * dz
     if (d2 >= min * min) continue
     const d = Math.sqrt(d2)
@@ -124,6 +157,8 @@ interface WalkControlsProps {
   bounds?: Bounds
   /** Where to stand on entering, when the scene wants a particular spot. */
   start?: [number, number]
+  /** Half a visitor's width. Narrow formal paths want a narrower walker. */
+  bodyRadius?: number
 }
 
 export function WalkControls({
@@ -135,6 +170,7 @@ export function WalkControls({
   obstacles = DEFAULT_OBSTACLES,
   bounds = DEFAULT_BOUNDS,
   start,
+  bodyRadius = BODY,
 }: WalkControlsProps) {
   const { camera, gl } = useThree()
   const reducedMotion = useGarden((s) => s.reducedMotion)
@@ -168,8 +204,18 @@ export function WalkControls({
 
   /* Step in from wherever the orbit camera was watching: keep its bearing on
    * the garden, drop to standing height, and level the view so nobody starts
-   * off staring at their own feet. */
+   * off staring at their own feet.
+   *
+   * This is an entry, so it must happen exactly once per mount — and it is
+   * guarded rather than trusted to its dependency list, because it plants
+   * the feet: if it ever ran again mid-walk it would teleport the visitor
+   * back to the gate, which is precisely what it did when a prop identity
+   * changed on re-render. */
+  const entered = useRef(false)
   useEffect(() => {
+    if (entered.current) return
+    entered.current = true
+
     const stance = start
       ? new THREE.Vector2(start[0], start[1])
       : (() => {
@@ -178,7 +224,7 @@ export function WalkControls({
           const reach = bounds.kind === 'rect' ? Math.min(bounds.halfX, bounds.halfZ) : bounds.r
           return from.clone().setLength(Math.min(from.length(), reach))
         })()
-    resolve(stance, obstacles, bounds)
+    resolve(stance, obstacles, bounds, bodyRadius, ZERO)
     feet.current.copy(stance)
 
     /* Face the middle of the garden, level. This is set as a bare yaw rather
@@ -192,9 +238,7 @@ export function WalkControls({
     // A camera with no rotation looks down -Z, so yaw runs the other way.
     const yaw = Math.atan2(-inward.x, -inward.y)
     camera.quaternion.setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ'))
-    // Obstacles and bounds are per-scene constants; listing them keeps the
-    // stance honest if a scene ever starts varying them.
-  }, [camera, obstacles, bounds, start])
+  }, [camera, obstacles, bounds, start, bodyRadius])
 
   /* Take the pointer. drei only locks on a *subsequent* click, but the click
    * that turned walk mode on is the one that should have counted — and this
@@ -307,7 +351,7 @@ export function WalkControls({
     const speed = velocity.current.length()
     if (speed > 0.01) {
       feet.current.addScaledVector(velocity.current, delta)
-      resolve(feet.current, obstacles, bounds)
+      resolve(feet.current, obstacles, bounds, bodyRadius, velocity.current)
     }
 
     // The gait: a shallow rise and fall, twice per stride, scaled by how fast
