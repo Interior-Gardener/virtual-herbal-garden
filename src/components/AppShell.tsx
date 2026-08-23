@@ -13,6 +13,7 @@ const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/explore', label: 'Explore', icon: 'grid' },
   { to: '/atlas', label: 'Atlas', icon: 'layers' },
   { to: '/tours', label: 'Tours', icon: 'route' },
+  { to: '/quiz', label: 'Quiz', icon: 'quiz' },
   { to: '/my-garden', label: 'My Garden', icon: 'bookmark' },
 ]
 
@@ -146,6 +147,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     location.pathname === '/' ||
     location.pathname === '/garden' ||
     location.pathname === '/vanaspatyam' ||
+    location.pathname === '/quiz' ||
     location.pathname.startsWith('/tours/')
 
   useEffect(() => {
