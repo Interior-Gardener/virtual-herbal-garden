@@ -42,6 +42,7 @@ const paths = {
   info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 4h.01M11 11h1v6h1',
   expand: 'M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5',
   cursor: 'm6 4 12 6-5 1.6L10.6 17 6 4Z',
+  quiz: 'M12 4a6 6 0 0 1 4 10.2V17H8v-2.8A6 6 0 0 1 12 4Zm-2 13h4m-2 0v3',
 } as const
 
 export type IconName = keyof typeof paths

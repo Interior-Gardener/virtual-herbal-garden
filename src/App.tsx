@@ -16,6 +16,7 @@ const Tours = lazy(() => import('./routes/Tours'))
 const MyGarden = lazy(() => import('./routes/MyGarden'))
 const Atlas = lazy(() => import('./routes/Atlas'))
 const Compare = lazy(() => import('./routes/Compare'))
+const Quiz = lazy(() => import('./routes/Quiz'))
 
 function RouteFallback() {
   return (
@@ -34,6 +35,7 @@ function isImmersive(pathname: string) {
     pathname === '/' ||
     pathname === '/garden' ||
     pathname === '/vanaspatyam' ||
+    pathname === '/quiz' ||
     pathname.startsWith('/tours/')
   )
 }
@@ -66,6 +68,7 @@ function AnimatedRoutes() {
             <Route path="/tours" element={<Tours />} />
             <Route path="/tours/:id" element={<TourPage />} />
             <Route path="/my-garden" element={<MyGarden />} />
+            <Route path="/quiz" element={<Quiz />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
