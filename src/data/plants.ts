@@ -5,13 +5,20 @@ import { plantsPart3 } from './plants.part3'
 import { plantsPart4 } from './plants.part4'
 import { PLANT_HISTORY } from './history'
 import { PLANT_PHOTOS } from './photos'
+import { asset } from '../lib/asset'
 
 // Botany and history are written and reviewed separately, then joined here.
 export const plants: Plant[] = [...plantsPart1, ...plantsPart2, ...plantsPart3, ...plantsPart4].map((entry) => {
   const history = PLANT_HISTORY[entry.id]
   // Loud at module load rather than a blank panel three clicks in.
   if (!history) throw new Error(`No history written for plant "${entry.id}"`)
-  return { ...entry, history, photos: PLANT_PHOTOS[entry.id] ?? [] }
+  // Photograph paths are written from the site root; resolve them against
+  // the deploy base so they survive being served from a sub-path.
+  const photos = (PLANT_PHOTOS[entry.id] ?? []).map((photo) => ({
+    ...photo,
+    src: asset(photo.src),
+  }))
+  return { ...entry, history, photos }
 })
 
 export const plantById: ReadonlyMap<string, Plant> = new Map(plants.map((p) => [p.id, p]))

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { gardenBeds, getPlant } from '../data/plants'
@@ -6,10 +6,8 @@ import { quizQuestions, shuffleQuestions, type QuizQuestion } from '../data/quiz
 import { GardenScene, OVERVIEW, type CameraGoal } from '../three/GardenScene'
 import { useGarden } from '../store/useGarden'
 import { Icon } from '../components/ui/Icon'
-import { Button } from '../components/ui/primitives'
 import { QuizHud } from '../components/QuizHud'
 import { QuizFeedback } from '../components/QuizFeedback'
-import { BotanicalPlate } from '../components/BotanicalPlate'
 
 /* ------------------------------------------------------------------ *
  * Types

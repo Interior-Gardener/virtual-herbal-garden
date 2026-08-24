@@ -79,7 +79,9 @@ function AnimatedRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    // Served from /<repo>/ on GitHub Pages and from / everywhere else; Vite
+    // hands whichever it is to the bundle as BASE_URL.
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <AppShell>
         <AnimatedRoutes />
       </AppShell>

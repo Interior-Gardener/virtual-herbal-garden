@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { Plant } from '../types/plant'
+import { asset } from '../lib/asset'
 
 /* ------------------------------------------------------------------ *
  * The Somaiya display board, reproduced.
@@ -17,7 +18,7 @@ import type { Plant } from '../types/plant'
  * any width without a single value needing to be touched.
  * ------------------------------------------------------------------ */
 
-export const BOARD_ART = '/cards/somaiya-board.jpg'
+export const BOARD_ART = asset('/cards/somaiya-board.jpg')
 
 /** The artwork's own pixel grid. */
 const ART_W = 1536

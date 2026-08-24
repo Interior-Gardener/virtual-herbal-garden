@@ -3,7 +3,6 @@ import { motion } from 'motion/react'
 import type { Plant } from '../types/plant'
 import { BotanicalPlate } from './BotanicalPlate'
 import { Icon } from './ui/Icon'
-import { Button } from './ui/primitives'
 
 /* ------------------------------------------------------------------ *
  * QuizFeedback — full-screen overlay shown between question and next.
