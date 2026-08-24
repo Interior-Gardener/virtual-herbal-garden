@@ -8,7 +8,7 @@ import { BED_PLOTS, GARDEN, PLAQUE, POND_PLANT, plotPlants, type GardenBedPlot }
 import { PlantObject } from './PlantObject'
 import { SkyDome } from './GardenScene'
 import { plantById } from '../data/plants'
-import { tickWind } from './materials'
+import { tickWind, windUniforms } from './materials'
 import { daylightAt } from './daylight'
 import { useDetail, dprFor } from '../hooks/useDetail'
 import type { Detail } from './procedural/plant'
@@ -40,6 +40,105 @@ const KERB = '#8d5b45'
 const HEDGE = '#3f6b3a'
 const HEDGE_DARK = '#1b2d1a'
 
+/**
+ * A fine speckle, tiled across the lawn and the soil.
+ *
+ * Neither surface is a painted slab in the photographs — laterite is
+ * grainy and blotchy where it has been turned over, and mown grass is
+ * never one flat green — but a plain coloured plane is exactly what a
+ * slab looks like. One 512px canvas, generated once and tinted by each
+ * material's own colour, breaks both of them up for a single texture
+ * fetch. The speckle is drawn near-white so it multiplies into whatever
+ * colour it is laid under.
+ */
+let noiseCache: THREE.CanvasTexture | null = null
+function groundNoise(): THREE.CanvasTexture {
+  if (noiseCache) return noiseCache
+  const size = 512
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  const rng = makeRng(hashSeed('vanaspatyam-grain'))
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, size, size)
+
+  // Wraps every mark round the edges, so the tile joins itself invisibly.
+  const stamp = (draw: (dx: number, dy: number) => void, x: number, y: number, r: number) => {
+    for (const ox of x < r ? [0, size] : x > size - r ? [0, -size] : [0]) {
+      for (const oy of y < r ? [0, size] : y > size - r ? [0, -size] : [0]) draw(ox, oy)
+    }
+  }
+
+  /**
+   * Broad mottling: damp patches and worn ground.
+   *
+   * Every mark fades to nothing at its rim. A hard-edged ellipse reads as a
+   * drawn circle rather than a patch of damp, and once the tile repeats you
+   * see a lattice of them — which is exactly what the first cut of this did.
+   * Small, faint and numerous beats large, dark and few for the same reason.
+   */
+  for (let i = 0; i < 260; i++) {
+    const x = rng.next() * size
+    const y = rng.next() * size
+    const r = rng.range(10, 38)
+    const dark = rng.next() > 0.45
+    const alpha = rng.range(0.018, 0.055)
+    stamp(
+      (dx, dy) => {
+        const g = ctx.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r)
+        const rgb = dark ? '0, 0, 0' : '255, 255, 255'
+        g.addColorStop(0, `rgba(${rgb}, ${alpha})`)
+        g.addColorStop(0.55, `rgba(${rgb}, ${alpha * 0.55})`)
+        g.addColorStop(1, `rgba(${rgb}, 0)`)
+        ctx.fillStyle = g
+        ctx.fillRect(x + dx - r, y + dy - r, r * 2, r * 2)
+      },
+      x,
+      y,
+      r,
+    )
+  }
+
+  // Grain: grit in the soil, blade shadow in the turf.
+  for (let i = 0; i < 22000; i++) {
+    const x = rng.next() * size
+    const y = rng.next() * size
+    const w = rng.range(1, 3.4)
+    ctx.globalAlpha = rng.range(0.05, 0.18)
+    ctx.fillStyle = rng.next() > 0.45 ? '#000000' : '#ffffff'
+    stamp((dx, dy) => ctx.fillRect(x + dx, y + dy, w, rng.range(1, 2.2)), x, y, 4)
+  }
+  ctx.globalAlpha = 1
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.anisotropy = 4
+  texture.colorSpace = THREE.SRGBColorSpace
+  noiseCache = texture
+  return texture
+}
+
+/**
+ * The grain above, repeated once per `tile` metres over a surface. Clones
+ * share the one canvas; `seed` slides each surface to its own corner of
+ * the tile so two beds of the same size don't come out identically dug.
+ */
+function useGrain(width: number, depth: number, tile = 1.6, seed = ''): THREE.Texture {
+  return useMemo(() => {
+    const texture = groundNoise().clone()
+    texture.needsUpdate = true
+    texture.repeat.set(width / tile, depth / tile)
+    if (seed) {
+      const rng = makeRng(hashSeed(`grain-${seed}`))
+      texture.offset.set(rng.next(), rng.next())
+    }
+    return texture
+  }, [width, depth, tile, seed])
+}
+
 function WindClock({ strength }: { strength: number }) {
   useFrame(({ clock }) => tickWind(clock.elapsedTime, strength))
   return null
@@ -47,24 +146,107 @@ function WindClock({ strength }: { strength: number }) {
 
 /**
  * The weedy scatter that keeps the beds from reading as slabs of clay.
- * One instanced mesh for the lot: a few thousand crossed blades, thicker
- * on the beds than on the open ground, exactly as the photographs show
- * a real working garden rather than a show bed.
+ *
+ * One instanced mesh for the lot. Each instance is a tuft of three blades,
+ * tapered to a point and arching over under their own weight, rather than
+ * the flat card a quad gives you — a vertical card lit by its own normal
+ * goes dark and reads as a painted stick, which is what the first version
+ * of this looked like. The blades take the ground's normal, carry a
+ * root-to-tip gradient in their vertex colours, and lean off vertical by a
+ * random few degrees, so no two tufts catch the light the same way.
  */
-function bladeGeometry(): THREE.BufferGeometry {
-  const blade = new THREE.PlaneGeometry(0.055, 0.2, 1, 2)
-  blade.translate(0, 0.1, 0)
-  const crossed = blade.clone()
-  crossed.rotateY(Math.PI / 2)
-  const merged = mergeGeometries([blade, crossed], false)
-  blade.dispose()
-  crossed.dispose()
-  return merged ?? new THREE.BufferGeometry()
+function bladeGeometry(width: number, height: number, bend: number): THREE.BufferGeometry {
+  const segments = 3
+  const positions: number[] = []
+  const uvs: number[] = []
+  const colors: number[] = []
+  const indices: number[] = []
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments
+    // Wide at the sheath, drawn to a point: the taper is most of what
+    // separates a blade of grass from a lolly stick.
+    const halfWidth = width * (1 - t * 0.9) * 0.5
+    const y = t * height
+    const z = bend * height * t * t
+    positions.push(-halfWidth, y, z, halfWidth, y, z)
+    uvs.push(0, t, 1, t)
+    // Shaded at the root where the tuft closes over itself, sun-bleached
+    // and a shade yellower at the tip.
+    const shade = 0.5 + t * 0.62
+    colors.push(shade, shade, shade * 0.94, shade, shade, shade * 0.94)
+  }
+  for (let i = 0; i < segments; i++) {
+    const a = i * 2
+    // Both windings, so a blade is lit from either side without needing a
+    // DoubleSide material to flip its normal and black out the far face.
+    indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3)
+    indices.push(a + 1, a + 2, a, a + 3, a + 2, a + 1)
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  geo.setIndex(indices)
+  // Blades borrow the ground's up-normal — the standard foliage trick, and
+  // the reason the tufts sit in the light instead of on top of it.
+  const upward = new Float32Array(positions.length)
+  for (let i = 1; i < upward.length; i += 3) upward[i] = 1
+  geo.setAttribute('normal', new THREE.BufferAttribute(upward, 3))
+  return geo
+}
+
+/** A tuft: three blades of unequal height, splayed and arching apart. */
+function tuftGeometry(): THREE.BufferGeometry {
+  const rng = makeRng(hashSeed('vanaspatyam-tuft'))
+  const parts: THREE.BufferGeometry[] = []
+  for (let i = 0; i < 3; i++) {
+    const blade = bladeGeometry(0.028, rng.range(0.15, 0.26), rng.range(0.3, 0.75))
+    // Splayed out of the crown, each one leaning its own way.
+    blade.rotateX(rng.range(-0.18, 0.18))
+    blade.rotateZ(rng.range(-0.22, 0.22))
+    blade.rotateY((i / 3) * Math.PI * 2 + rng.range(-0.5, 0.5))
+    blade.translate(rng.jitter(0.012), 0, rng.jitter(0.012))
+    parts.push(blade)
+  }
+  const tuft = mergeGeometries(parts, false)
+  parts.forEach((part) => part.dispose())
+  return tuft ?? new THREE.BufferGeometry()
+}
+
+/** Grass that moves: the same wind clock the plants run on. */
+function weedMaterial(color: string): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(color),
+    roughness: 1,
+    metalness: 0,
+    vertexColors: true,
+  })
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = windUniforms.uTime
+    shader.uniforms.uWind = windUniforms.uWind
+    shader.vertexShader = ('uniform float uTime;\nuniform float uWind;\n' + shader.vertexShader).replace(
+      '#include <begin_vertex>',
+      [
+        '#include <begin_vertex>',
+        'float bladeH = max(transformed.y, 0.0);',
+        // Every tuft keeps its own phase, taken from where it stands, so the
+        // patch ripples instead of swinging as one body.
+        'float phase = instanceMatrix[3].x * 1.9 + instanceMatrix[3].z * 1.3;',
+        'float amp = uWind * (0.012 * bladeH + 0.24 * bladeH * bladeH);',
+        'transformed.x += sin(uTime * 1.7 + phase) * amp;',
+        'transformed.z += cos(uTime * 1.25 + phase * 1.4) * amp * 0.7;',
+      ].join('\n'),
+    )
+  }
+  material.customProgramCacheKey = () => 'vanaspatyam-weed'
+  return material
 }
 
 function Weeds({ dark, detail }: { dark: boolean; detail: Detail }) {
-  const geometry = useMemo(() => bladeGeometry(), [])
-  const count = detail === 'low' ? 900 : detail === 'medium' ? 1800 : 3000
+  const geometry = useMemo(() => tuftGeometry(), [])
+  const material = useMemo(() => weedMaterial(dark ? '#2c4526' : '#63853f'), [dark])
+  useEffect(() => () => material.dispose(), [material])
+  const count = detail === 'low' ? 900 : detail === 'medium' ? 2000 : 3400
   const mesh = useRef<THREE.InstancedMesh>(null)
 
   useEffect(() => {
@@ -73,49 +255,83 @@ function Weeds({ dark, detail }: { dark: boolean; detail: Detail }) {
     const rng = makeRng(hashSeed('vanaspatyam-weeds'))
     const m = new THREE.Matrix4()
     const q = new THREE.Quaternion()
+    const euler = new THREE.Euler()
+    const pos = new THREE.Vector3()
     const scale = new THREE.Vector3()
-    for (let i = 0; i < count; i++) {
-      // Two thirds go on the beds, the rest on the margins between them.
-      let x: number
-      let z: number
-      if (i % 3 !== 0) {
-        const plot = BED_PLOTS[i % BED_PLOTS.length]
-        x = plot.x + rng.range(-plot.halfX, plot.halfX) * 0.94
-        z = plot.z + rng.range(-plot.halfZ, plot.halfZ) * 0.94
+    const tint = new THREE.Color()
+
+    // Weeds come up in patches, not on a grid: pick a crown and let a
+    // handful of tufts crowd around it.
+    let placed = 0
+    while (placed < count) {
+      const clump = 3 + Math.floor(rng.next() * 5)
+      // Two thirds of the patches go on the beds, the rest on the trodden
+      // margins between them, where the growth is shorter and drier.
+      const onBed = rng.next() < 0.66
+      let cx: number
+      let cz: number
+      if (onBed) {
+        const plot = BED_PLOTS[Math.floor(rng.next() * BED_PLOTS.length)]
+        cx = plot.x + rng.range(-plot.halfX, plot.halfX) * 0.94
+        cz = plot.z + rng.range(-plot.halfZ, plot.halfZ) * 0.94
       } else {
-        x = rng.range(-GARDEN.innerX, GARDEN.innerX)
-        z = rng.range(GARDEN.northZ, GARDEN.southZ)
+        cx = rng.range(-GARDEN.innerX, GARDEN.innerX)
+        cz = rng.range(GARDEN.northZ, GARDEN.southZ)
         // Keep the spine walkable-looking rather than overgrown.
-        if (Math.abs(x) < GARDEN.spineHalfWidth + 0.2) x += Math.sign(x || 1) * 1.4
+        if (Math.abs(cx) < GARDEN.spineHalfWidth + 0.2) cx += Math.sign(cx || 1) * 1.4
       }
-      const h = rng.range(0.5, 1.5)
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rng.range(0, Math.PI))
-      scale.set(rng.range(0.7, 1.3), h, 1)
-      m.compose(new THREE.Vector3(x, 0.035, z), q, scale)
-      target.setMatrixAt(i, m)
+      const spread = rng.range(0.18, 0.55)
+
+      for (let j = 0; j < clump && placed < count; j++, placed++) {
+        const x = cx + rng.jitter(spread)
+        const z = cz + rng.jitter(spread)
+        // Sit on whichever surface is underneath: the beds stand a little
+        // proud of the ground they are cut into.
+        const y = onBed ? 0.031 : 0.002
+        // Height falls off toward the edge of the patch, so a clump has a
+        // crown rather than a flat top.
+        const near = 1 - Math.min(1, Math.hypot(x - cx, z - cz) / (spread * 2.2))
+        const h = rng.range(0.6, 1.15) * (onBed ? 1.15 : 0.85) * (0.7 + near * 0.45)
+        euler.set(rng.jitter(0.16), rng.range(0, Math.PI * 2), rng.jitter(0.16))
+        q.setFromEuler(euler)
+        scale.set(rng.range(0.8, 1.25), h, rng.range(0.8, 1.25))
+        pos.set(x, y, z)
+        m.compose(pos, q, scale)
+        target.setMatrixAt(placed, m)
+        // Some of it is green and some has gone over to straw — a working
+        // garden in the dry season is never one flat colour.
+        const dry = rng.next() < 0.28 ? rng.range(0.35, 0.9) : 0
+        const shade = rng.range(0.82, 1.15)
+        tint.setRGB(shade * (1 + dry * 0.55), shade * (1 + dry * 0.22), shade * (1 - dry * 0.35))
+        target.setColorAt(placed, tint)
+      }
     }
+    target.count = placed
     target.instanceMatrix.needsUpdate = true
-  }, [count, geometry])
+    if (target.instanceColor) target.instanceColor.needsUpdate = true
+    // `material` is a dependency because swapping it rebuilds the mesh
+    // itself: without this the night material would come back empty.
+  }, [count, geometry, material])
 
   return (
-    <instancedMesh ref={mesh} args={[geometry, undefined, count]} frustumCulled={false}>
-      <meshStandardMaterial
-        color={dark ? '#23391f' : '#5f7d3c'}
-        roughness={1}
-        side={THREE.DoubleSide}
-        transparent
-        alphaTest={0.4}
-      />
-    </instancedMesh>
+    <instancedMesh
+      ref={mesh}
+      args={[geometry, material, count]}
+      frustumCulled={false}
+      receiveShadow
+    />
   )
 }
 
 /** Ground: mown grass over the whole plot, with the beds cut into it. */
 function Ground({ dark }: { dark: boolean }) {
+  const width = GARDEN.width + 14
+  const depth = GARDEN.length + 14
+  const grain = useGrain(width, depth, 3.4)
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
-      <planeGeometry args={[GARDEN.width + 14, GARDEN.length + 14]} />
-      <meshStandardMaterial color={dark ? '#22301f' : '#6f8a4e'} roughness={1} />
+      <planeGeometry args={[width, depth]} />
+      <meshStandardMaterial map={grain} color={dark ? '#22301f' : '#6f8a4e'} roughness={1} />
     </mesh>
   )
 }
@@ -185,13 +401,15 @@ function Bed({ plot, dark }: { plot: GardenBedPlot; dark: boolean }) {
     const rng = makeRng(hashSeed(`soil-${plot.id}`))
     return new THREE.Color(SOIL).offsetHSL(rng.jitter(0.012), rng.jitter(0.05), rng.jitter(0.035))
   }, [plot.id])
+  // Turned earth is coarser than turf, so the grain sits closer together.
+  const grain = useGrain(plot.halfX * 2, plot.halfZ * 2, 2.4, plot.id)
   return (
     <group position={[plot.x, 0, plot.z]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} receiveShadow>
         <planeGeometry args={[plot.halfX * 2, plot.halfZ * 2]} />
         {/* Each bed is dug and weathered on its own, so no two are the same
             shade of laterite. */}
-        <meshStandardMaterial color={dark ? SOIL_DARK : tint} roughness={1} />
+        <meshStandardMaterial map={grain} color={dark ? SOIL_DARK : tint} roughness={1} />
       </mesh>
       {([
         [0, plot.halfZ, plot.halfX * 2 + t, t],
