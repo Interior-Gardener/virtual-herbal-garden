@@ -6,8 +6,8 @@ import { plantById } from './plants'
  * inaugurated 12 February 2016.
  *
  * The bones are the surveyed design: 30 m north-south by 25 m across, a
- * south gate on the axis, a 2.2 m central spine, four ranks of beds
- * either side of it, and a circular lily pond closing the north end.
+ * south gate on the axis, a 2.2 m central spine, ranks of beds either
+ * side of it, and a circular lily pond closing the north end.
  * The dressing is what the camera found there — red lateritic soil,
  * brick-kerbed beds, white label boards on black posts, a clipped
  * boundary hedge, and the transmission pylons that stand over the whole
@@ -22,9 +22,15 @@ import { plantById } from './plants'
  * coordinates, so the positions below are derived from them and checked
  * against each other — the first attempt at this put the pond's walking
  * ring straight through the back rank of beds. */
-const RANKS = 4
-const RANK_DEPTH = 3.2
-const RANK_GAP = 1.4
+/* Five ranks rather than the plan's four. The plan's sixteen beds meant
+ * three species crowded into some of them, standing close enough to grow
+ * through each other and to need three labels on one bed's edge. A fifth
+ * rank buys four more beds, which is enough to hold every bed to one or
+ * two species — slightly shallower beds and tighter cross paths pay for
+ * most of the extra length. */
+const RANKS = 5
+const RANK_DEPTH = 2.9
+const RANK_GAP = 1.35
 /** South edge of the rank nearest the gate. */
 const FIRST_RANK_SOUTH = 11.6
 const POND_RADIUS = 3.2
@@ -36,8 +42,9 @@ const LAST_RANK_NORTH = FIRST_RANK_SOUTH - RANKS * RANK_DEPTH - (RANKS - 1) * RA
 const POND_Z = LAST_RANK_NORTH - POND_CLEARANCE - POND_RADIUS - POND_RING
 
 export const GARDEN = {
-  /** Overall plot, from the plan. */
-  length: 30,
+  /** Overall plot. The plan gives 30 m; the fifth rank of beds takes it to
+   * 32, which only the mown ground beyond the hedge cares about. */
+  length: 32,
   width: 25,
   /** Planted ground stops here; the hedge rings the outside of it. */
   innerX: 10.5,
@@ -76,7 +83,7 @@ const BED_OUTER_X = 9.6
 const BED_SPLIT_GAP = 0.25
 
 /**
- * The compendium's species across the sixteen plots, each planted once —
+ * The compendium's species across the twenty plots, each planted once —
  * every one except the lotus, which stands in the pond instead. Height rises with distance from the gate — ground-cover herbs at
  * the entrance, trees against the pond — which is both how the plan's
  * planting-height guide reads and how you would actually plant it, so
@@ -85,22 +92,27 @@ const BED_SPLIT_GAP = 0.25
 const PLANTING: string[][] = [
   // Rank nearest the gate: the low, creeping and household herbs.
   ['brahmi', 'mandukaparni'],
-  ['mint', 'bhringraj'],
-  ['tulsi', 'punarnava', 'sadaphuli'],
+  ['mint'],
+  ['bhringraj'],
+  ['tulsi', 'punarnava'],
+  // Second rank: the last of the soft herbs, then the rhizomes.
+  ['sadaphuli'],
   ['aloe-vera', 'fenugreek'],
-  // Second rank: rhizomes, grasses and the shrubby ones.
   ['turmeric', 'ginger'],
-  ['lemongrass', 'shatavari'],
+  ['lemongrass'],
+  // Third rank: grasses giving way to the shrubby ones.
+  ['shatavari'],
   ['ashwagandha', 'sarpagandha'],
-  ['kalmegh', 'vasaka', 'hibiscus'],
-  // Third rank: climbers and the taller shrubs.
+  ['kalmegh', 'vasaka'],
+  ['hibiscus'],
+  // Fourth rank: climbers and the taller shrubs.
   ['mulethi', 'giloy'],
-  ['henna', 'pomegranate'],
+  ['henna'],
+  ['pomegranate'],
   ['guggulu'],
-  ['neem'],
   // Rank against the pond: the trees, which would shade anything in front.
-  ['amla'],
-  ['arjuna'],
+  ['neem'],
+  ['amla', 'arjuna'],
   ['bael'],
   ['sandalwood', 'babul'],
 ]

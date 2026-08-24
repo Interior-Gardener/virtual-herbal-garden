@@ -13,7 +13,16 @@ import type { Plant } from '../types/plant'
  * your feet changes.
  * ------------------------------------------------------------------ */
 
-export function Crosshair({ aimed, open }: { aimed: Plant | undefined; open: boolean }) {
+export function Crosshair({
+  aimed,
+  open,
+  label,
+}: {
+  aimed: Plant | undefined
+  open: boolean
+  /** Overrides the prompt — a label board is read, not met. */
+  label?: string
+}) {
   return (
     <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center">
       <div className="flex flex-col items-center gap-3">
@@ -38,7 +47,7 @@ export function Crosshair({ aimed, open }: { aimed: Plant | undefined; open: boo
               transition={{ duration: 0.18 }}
               className="glass rounded-full border border-line px-3 py-1 text-[0.72rem] font-medium text-ink-soft"
             >
-              {open ? 'Click for quiet' : 'Click to meet'}
+              {label ?? (open ? 'Click for quiet' : 'Click to meet')}
             </motion.span>
           )}
         </AnimatePresence>

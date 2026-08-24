@@ -142,13 +142,30 @@ export interface WalkTarget {
   scale: number
 }
 
+/**
+ * A label board that can be read on foot. Boards are props rather than
+ * plants, so they aim as a small upright slab at reading height and report
+ * separately — the crosshair on a board means "read this", not "meet this".
+ */
+export interface WalkBoard {
+  plantId: string
+  /** Foot of the post. */
+  position: [number, number, number]
+}
+
 interface WalkControlsProps {
   placements: WalkTarget[]
+  /** Readable label boards, if the scene has any. */
+  boards?: WalkBoard[]
   /** Fired when pointer lock ends: Esc, alt-tab, or the browser deciding so. */
   onExit: () => void
   /** The plant under the crosshair, or null. */
   onAim: (plantId: string | null) => void
   onSelect: (plantId: string) => void
+  /** The board under the crosshair, or null. */
+  onBoardAim?: (plantId: string | null) => void
+  /** Clicked while aiming at a board. */
+  onBoardSelect?: (plantId: string) => void
   /** Clicked on nothing in particular. */
   onDismiss?: () => void
   /** What blocks the feet. Defaults to the main garden's beds and basin. */
@@ -163,9 +180,12 @@ interface WalkControlsProps {
 
 export function WalkControls({
   placements,
+  boards,
   onExit,
   onAim,
   onSelect,
+  onBoardAim,
+  onBoardSelect,
   onDismiss,
   obstacles = DEFAULT_OBSTACLES,
   bounds = DEFAULT_BOUNDS,
@@ -182,6 +202,7 @@ export function WalkControls({
   const feet = useRef(new THREE.Vector2())
   const stride = useRef(0)
   const aimed = useRef<string | null>(null)
+  const aimedBoard = useRef<string | null>(null)
 
   /* Aim is tested against a vertical capsule per plant rather than the real
    * foliage. The generated plants are thousands of thin leaf cards with gaps
@@ -193,14 +214,36 @@ export function WalkControls({
         const height = plant.model.height * scale
         return {
           id: plant.id,
+          board: false,
           x: position[0],
           z: position[2],
+          bottom: -0.1,
           top: height + 0.25,
           radius: THREE.MathUtils.clamp(height * 0.36, 0.34, 1),
         }
       }),
     [placements],
   )
+
+  /* Boards aim as a stubby column around the plate: knee height upward, so
+   * looking at the soil in front of a bed is not the same as reading its
+   * board, and a little wider than the plate so the crosshair does not have
+   * to be dead centre on a sign you are standing beside. */
+  const boardTargets = useMemo(
+    () =>
+      (boards ?? []).map(({ plantId, position }) => ({
+        id: plantId,
+        board: true,
+        x: position[0],
+        z: position[2],
+        bottom: position[1] + 0.45,
+        top: position[1] + 1.05,
+        radius: 0.42,
+      })),
+    [boards],
+  )
+
+  const aimTargets = useMemo(() => [...targets, ...boardTargets], [targets, boardTargets])
 
   /* Step in from wherever the orbit camera was watching: keep its bearing on
    * the garden, drop to standing height, and level the view so nobody starts
@@ -303,15 +346,17 @@ export function WalkControls({
   useEffect(() => {
     const pick = (e: MouseEvent) => {
       if (e.button !== 0) return
-      if (aimed.current) onSelect(aimed.current)
+      if (aimedBoard.current) onBoardSelect?.(aimedBoard.current)
+      else if (aimed.current) onSelect(aimed.current)
       else onDismiss?.()
     }
     document.addEventListener('pointerdown', pick)
     return () => document.removeEventListener('pointerdown', pick)
-  }, [onSelect, onDismiss])
+  }, [onSelect, onBoardSelect, onDismiss])
 
   // Leaving walk mode should not leave a plant lit up behind it.
   useEffect(() => () => onAim(null), [onAim])
+  useEffect(() => () => onBoardAim?.(null), [onBoardAim])
 
   useFrame((_, rawDelta) => {
     // A backgrounded tab resumes with one enormous delta; clamp it so nobody
@@ -372,13 +417,14 @@ export function WalkControls({
     /* What the crosshair is on: the nearest capsule the view axis runs
      * through, within reach. */
     let bestId: string | null = null
+    let bestBoard = false
     let bestDist = Infinity
     const hx = AXIS.x
     const hz = AXIS.z
     const hLenSq = hx * hx + hz * hz
     // Near-vertical views degenerate — nothing is meaningfully "in front".
     if (hLenSq > 1e-4) {
-      for (const t of targets) {
+      for (const t of aimTargets) {
         const ox = camera.position.x - t.x
         const oz = camera.position.z - t.z
         // How far along the view axis the plant's axis comes closest.
@@ -389,15 +435,22 @@ export function WalkControls({
         if (px * px + pz * pz > t.radius * t.radius) continue
         // ...and whether the view is at the plant's height there, or over it.
         const y = camera.position.y + AXIS.y * s
-        if (y < -0.1 || y > t.top) continue
+        if (y < t.bottom || y > t.top) continue
         bestId = t.id
+        bestBoard = t.board
         bestDist = s
       }
     }
 
-    if (bestId !== aimed.current) {
-      aimed.current = bestId
-      onAim(bestId)
+    const plantId = bestBoard ? null : bestId
+    const boardId = bestBoard ? bestId : null
+    if (plantId !== aimed.current) {
+      aimed.current = plantId
+      onAim(plantId)
+    }
+    if (boardId !== aimedBoard.current) {
+      aimedBoard.current = boardId
+      onBoardAim?.(boardId)
     }
   })
 

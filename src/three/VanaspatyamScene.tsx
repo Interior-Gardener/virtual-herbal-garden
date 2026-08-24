@@ -502,9 +502,12 @@ function LabelBoard({
             zIndexRange={[8, 0]}
             style={{ pointerEvents: 'none' }}
           >
-            <div className="w-[150px] text-center font-display leading-tight text-stone-800">
-              <div className="text-[9px] font-semibold">{plant.names.Sanskrit ?? plant.name}</div>
-              <div className="text-[7px] italic">{plant.botanical}</div>
+            {/* The plate is 0.62 wide at distanceFactor 2.6, which works out at
+                roughly 96 px of label — anything wider prints off the board, so
+                long names wrap here rather than running over the edge. */}
+            <div className="w-[96px] break-words px-1 text-center font-display leading-[1.1] text-stone-800">
+              <div className="text-[7px] font-semibold">{plant.names.Sanskrit ?? plant.name}</div>
+              <div className="text-[5.5px] italic">{plant.botanical}</div>
             </div>
           </Html>
         )}
@@ -945,6 +948,24 @@ const WALK_BOUNDS = {
   z: (GARDEN.southZ + GARDEN.northZ) / 2,
 }
 
+/**
+ * How wide each habit grows compared with how tall it stands. Used to give
+ * every species a footprint, so a bed is filled by the plant rather than by
+ * whatever size the model happens to be.
+ */
+const SPREAD: Record<Plant['model']['archetype'], number> = {
+  creeper: 1.8,
+  /* An aloe is all leaf and no stem: the rosette throws its blades out
+   * further than the plant stands tall, so it needs the widest allowance
+   * here or it is planted at a size that hangs over the kerb. */
+  rosette: 2.1,
+  herb: 0.8,
+  grass: 0.7,
+  shrub: 0.9,
+  climber: 0.8,
+  tree: 0.7,
+}
+
 export interface VanaspatyamSceneProps {
   selectedId: string | null
   hoveredId: string | null
@@ -956,6 +977,10 @@ export interface VanaspatyamSceneProps {
   onWalkDismiss?: () => void
   /** Pointer on a bed's label board — see `BoardRead`. */
   onBoardRead?: BoardRead
+  /** Crosshair on a board while walking, or null. */
+  onBoardAim?: (plantId: string | null) => void
+  /** Board clicked while walking. */
+  onBoardSelect?: (plantId: string) => void
 }
 
 function SceneContents({
@@ -968,6 +993,8 @@ function SceneContents({
   onWalkExit,
   onWalkDismiss,
   onBoardRead,
+  onBoardAim,
+  onBoardSelect,
   detail,
 }: VanaspatyamSceneProps & { detail: Detail }) {
   const controls = useRef<OrbitControlsImpl | null>(null)
@@ -980,21 +1007,106 @@ function SceneContents({
    * length of their bed and scaled up the way the main garden does, so a
    * ground-hugging creeper still reads beside a young tree. */
   const specimens = useMemo(() => {
-    const out: { plant: Plant; position: [number, number, number]; spin: number; scale: number; plot: GardenBedPlot }[] = []
+    const out: {
+      plant: Plant
+      /** Which copy within its patch — only used to key the mesh. */
+      copy: number
+      position: [number, number, number]
+      spin: number
+      scale: number
+      plot: GardenBedPlot
+    }[] = []
     for (const plot of BED_PLOTS) {
       const members = plotPlants(plot)
       const rng = makeRng(hashSeed(`vsp-${plot.id}`))
       members.forEach((plant, i) => {
         const share = members.length
-        // Two to a bed sit fore and aft of centre, well inside the kerb.
-        const zOffset = share === 1 ? 0 : (i / (share - 1) - 0.5) * plot.halfZ
-        const scale = 1.35 * THREE.MathUtils.clamp(0.5 / plant.model.height, 1, 2.6)
+        /* Each species gets a column of the bed running back from the path,
+         * not a front-or-back band: the boards stand in a row along the bed's
+         * edge, so the planting has to be split the same way round or the
+         * board on the left names the plants on the right. */
+        const bandHalfX = plot.halfX / share
+        const bandX = plot.x + (share === 1 ? 0 : (i - 0.5) * bandHalfX * 2)
+
+        /* How wide the thing grows, as a fraction of how tall it is. A bushy
+         * creeper sprawls wider than it stands; a young tree does not. This
+         * is what stops a mint from being planted on the same footprint as a
+         * neem. */
+        const spread = SPREAD[plant.model.archetype]
+        // Aim each plant at a share of its column rather than at a fixed
+        // size, then let the patch below make up whatever ground one plant of
+        // it cannot cover.
+        const target = Math.min(bandHalfX, plot.halfZ) * 1.1
+        const scale = THREE.MathUtils.clamp(
+          target / (plant.model.height * spread),
+          0.8,
+          2.4,
+        )
+        const footprint = plant.model.height * spread * scale
+
+        /* A bed is planted in a drift, not with one specimen standing alone
+         * in the middle of bare soil: a low herb fills its column with a
+         * patch of itself, while anything already that size is planted once.
+         * The patch runs deep rather than wide — rows back from the board, so
+         * the drift reads as one species' column. Copies are capped because
+         * every one of them is a few thousand leaf cards. */
+        const cols = THREE.MathUtils.clamp(Math.round((bandHalfX * 2) / footprint), 1, 2)
+        const rows = THREE.MathUtils.clamp(Math.round((plot.halfZ * 2) / footprint), 1, 3)
+        // What the machine can afford: a full patch on a good one, a single
+        // specimen on a weak one.
+        const budget = detail === 'low' ? 1 : detail === 'medium' ? 3 : 6
+        let planted = 0
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (planted >= budget) break
+            planted++
+            // Spread the grid across the column, then break it up — a
+            // hand-set patch, not a plantation.
+            const fx = cols === 1 ? 0 : (c / (cols - 1) - 0.5) * 2
+            const fz = rows === 1 ? 0 : (r / (rows - 1) - 0.5) * 2
+            out.push({
+              plant,
+              copy: r * cols + c,
+              plot,
+              position: [
+                // Keep the whole footprint inside the kerb, jitter included.
+                bandX + fx * Math.max(0, bandHalfX - footprint * 0.5 - 0.1) + rng.jitter(0.1),
+                0.04,
+                plot.z + fz * Math.max(0, plot.halfZ - footprint * 0.5 - 0.1) + rng.jitter(0.1),
+              ],
+              spin: rng.range(0, Math.PI * 2),
+              scale: scale * rng.range(0.9, 1.1),
+            })
+          }
+        }
+      })
+    }
+    return out
+  }, [detail])
+
+  /* One board per species — a patch of six mint plants is still one thing
+   * that needs naming — out on the bed's path edge rather than standing among
+   * the plants, where a post would hide what it names. */
+  const boards = useMemo(() => {
+    const out: { plant: Plant; plotId: string; position: [number, number, number] }[] = []
+    for (const plot of BED_PLOTS) {
+      const members = plotPlants(plot)
+      if (!members.length) continue
+      // Each board stands at the mouth of its own species' column, so the
+      // patch behind it is the one it names.
+      const bandHalfX = plot.halfX / members.length
+      members.forEach((plant, i) => {
+        const centre =
+          members.length === 1 ? plot.x : plot.x + (i - 0.5) * bandHalfX * 2
         out.push({
           plant,
-          plot,
-          position: [plot.x + rng.jitter(plot.halfX * 0.3), 0.04, plot.z + zOffset + rng.jitter(0.15)],
-          spin: rng.range(0, Math.PI * 2),
-          scale,
+          plotId: plot.id,
+          position: [
+            THREE.MathUtils.clamp(centre, plot.x - plot.halfX + 0.36, plot.x + plot.halfX - 0.36),
+            0,
+            plot.z + plot.halfZ + 0.42,
+          ],
         })
       })
     }
@@ -1054,8 +1166,8 @@ function SceneContents({
       ))}
 
       <Suspense fallback={null}>
-        {specimens.map(({ plant, position, spin, scale, plot }) => (
-          <group key={`${plot.id}-${plant.id}`} position={position}>
+        {specimens.map(({ plant, copy, position, spin, scale, plot }) => (
+          <group key={`${plot.id}-${plant.id}-${copy}`} position={position}>
             <PlantObject
               plant={plant}
               detail={detail}
@@ -1105,26 +1217,22 @@ function SceneContents({
         ))}
       </Suspense>
 
-      {/* One board per bed, planted on its path edge and facing the walk. */}
-      {BED_PLOTS.map((plot) => {
-        const first = plotPlants(plot)[0]
-        if (!first) return null
-        const dir = plot.side === 'west' ? 1 : -1
-        return (
-          <LabelBoard
-            key={`label-${plot.id}`}
-            plant={first}
-            dark={dark}
-            showText={detail !== 'low'}
-            /* Walking locks the pointer away, so there is nothing to hover with. */
-            onRead={walking ? undefined : onBoardRead}
-            position={[plot.x + dir * (plot.halfX - 0.3), 0, plot.z + plot.halfZ + 0.42]}
-            /* Facing +Z, which is back down the garden toward the gate — a
-               board you read as you walk up to the bed, not after passing it. */
-            rotation={0}
-          />
-        )
-      })}
+      {/* One board per plant, not per bed: a row of them along each bed's
+          path edge, facing the walk. */}
+      {boards.map(({ plant, plotId, position }) => (
+        <LabelBoard
+          key={`label-${plotId}-${plant.id}`}
+          plant={plant}
+          dark={dark}
+          showText={detail !== 'low'}
+          /* Walking locks the pointer away, so there is nothing to hover with. */
+          onRead={walking ? undefined : onBoardRead}
+          position={position}
+          /* Facing +Z, which is back down the garden toward the gate — a
+             board you read as you walk up to the plant, not after passing it. */
+          rotation={0}
+        />
+      ))}
 
       {walking && onWalkExit ? (
         <WalkControls
@@ -1133,6 +1241,9 @@ function SceneContents({
           onAim={onHover}
           onSelect={onSelect}
           onDismiss={onWalkDismiss}
+          boards={boards.map(({ plant, position }) => ({ plantId: plant.id, position }))}
+          onBoardAim={onBoardAim}
+          onBoardSelect={onBoardSelect}
           obstacles={WALK_OBSTACLES}
           bounds={WALK_BOUNDS}
           start={WALK_START}

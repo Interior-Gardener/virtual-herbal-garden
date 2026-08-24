@@ -24,6 +24,8 @@ export default function Vanaspatyam() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [walking, setWalking] = useState(false)
+  /* placeBoard runs outside React's render, so it reads walk mode from a ref. */
+  const walkingRef = useRef(false)
   const [metId, setMetId] = useState<string | null>(null)
   const [canWalk, setCanWalk] = useState(false)
 
@@ -55,6 +57,14 @@ export default function Vanaspatyam() {
   const placeBoard = useCallback(() => {
     const el = boardRef.current
     if (!el) return
+    if (walkingRef.current) {
+      // Pointer-locked: there is no pointer to sit beside, so the card takes
+      // the middle of the screen where the crosshair already is.
+      const left = Math.max(12, (window.innerWidth - el.offsetWidth) / 2)
+      const top = Math.max(12, (window.innerHeight - el.offsetHeight) / 2)
+      el.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`
+      return
+    }
     const margin = 14
     const gap = 24
     const w = el.offsetWidth
@@ -89,6 +99,21 @@ export default function Vanaspatyam() {
   useLayoutEffect(() => {
     if (boardId) placeBoard()
   }, [boardId, placeBoard])
+
+  /* On foot the pointer is locked away, so a board is read by putting the
+   * crosshair on it and clicking: the same card, parked in the middle of the
+   * screen because there is no pointer to hang it beside. Clicking it again,
+   * or clicking anything else, puts it down. */
+  const [aimedBoardId, setAimedBoardId] = useState<string | null>(null)
+  const readBoardOnFoot = useCallback((id: string) => {
+    setBoardId((current) => {
+      const next = current === id ? null : id
+      boardIdRef.current = next
+      return next
+    })
+  }, [])
+
+  const aimedBoard = getPlant(aimedBoardId ?? undefined)
 
   const clearBoard = useCallback(() => {
     boardIdRef.current = null
@@ -134,9 +159,17 @@ export default function Vanaspatyam() {
     [markVisited],
   )
 
+  /* placeBoard is called outside render, so walk mode is mirrored here. */
+  useEffect(() => {
+    walkingRef.current = walking
+  }, [walking])
+
   const stopWalking = useCallback(() => {
     setWalking(false)
     setMetId(null)
+    setAimedBoardId(null)
+    boardIdRef.current = null
+    setBoardId(null)
     hush()
   }, [hush])
 
@@ -162,8 +195,13 @@ export default function Vanaspatyam() {
         timeOfDay={timeOfDay}
         walking={walking}
         onWalkExit={stopWalking}
-        onWalkDismiss={() => setMetId(null)}
+        onWalkDismiss={() => {
+          setMetId(null)
+          clearBoard()
+        }}
         onBoardRead={readBoard}
+        onBoardAim={setAimedBoardId}
+        onBoardSelect={readBoardOnFoot}
       />
 
       <div
@@ -177,7 +215,19 @@ export default function Vanaspatyam() {
 
       {walking ? (
         <>
-          <Crosshair aimed={hovered} open={!!hovered && hovered.id === metId} />
+          {/* A board under the crosshair takes the sight over from the plant
+              behind it: what a click does here is read, not meet. */}
+          <Crosshair
+            aimed={aimedBoard ?? hovered}
+            open={!!hovered && hovered.id === metId}
+            label={
+              aimedBoard
+                ? boardId === aimedBoard.id
+                  ? 'Click to put down'
+                  : 'Click to read'
+                : undefined
+            }
+          />
           <AnimatePresence mode="wait">
             {met ? (
               <Encounter key={met.id} plant={met} speaking={speaking} />
