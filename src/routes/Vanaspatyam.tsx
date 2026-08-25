@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { VanaspatyamScene, type BoardRead } from '../three/VanaspatyamScene'
+import {
+  VanaspatyamScene,
+  PLAQUE_ART,
+  PLAQUE_ART_H,
+  PLAQUE_ART_W,
+  PLAQUE_BOARD_ID,
+  type BoardRead,
+  type PlaqueRead,
+} from '../three/VanaspatyamScene'
 import { Crosshair, Encounter } from '../components/WalkHud'
 import { BoardCard, BOARD_ART } from '../components/BoardCard'
 import { BED_PLOTS, PLAQUE, POND_PLANT } from '../data/vanaspatyam'
@@ -94,6 +102,24 @@ export default function Vanaspatyam() {
     [placeBoard],
   )
 
+  /* Hovering the dedication plaque raises the photograph of it, full size
+   * and beside the pointer — the same gesture and the same frame as a bed's
+   * board, because on the ground it is the same act: standing close enough
+   * to read the thing. */
+  const readPlaque = useCallback<PlaqueRead>(
+    (on, clientX, clientY) => {
+      if (on && clientX !== undefined && clientY !== undefined) {
+        pointerRef.current = { x: clientX, y: clientY }
+        placeBoard()
+      }
+      const next = on ? PLAQUE_BOARD_ID : null
+      if (boardIdRef.current === next) return
+      boardIdRef.current = next
+      setBoardId(next)
+    },
+    [placeBoard],
+  )
+
   /* The card mounts with the pointer already somewhere, so it has to be
    * put in place before the browser paints it. */
   useLayoutEffect(() => {
@@ -114,6 +140,12 @@ export default function Vanaspatyam() {
   }, [])
 
   const aimedBoard = getPlant(aimedBoardId ?? undefined)
+  /* The plaque names no plant, so it travels through the boards' machinery
+   * under a sentinel id and is picked back out here. */
+  const aimedPlaque = aimedBoardId === PLAQUE_BOARD_ID
+  const plaqueUp = boardId === PLAQUE_BOARD_ID
+  /* The sight only wants a colour, and the plaque's is the garden's own. */
+  const aimedSight = aimedBoard ?? (aimedPlaque ? { accent: '#c7b299' } : undefined)
 
   const clearBoard = useCallback(() => {
     boardIdRef.current = null
@@ -200,6 +232,7 @@ export default function Vanaspatyam() {
           clearBoard()
         }}
         onBoardRead={readBoard}
+        onPlaqueRead={readPlaque}
         onBoardAim={setAimedBoardId}
         onBoardSelect={readBoardOnFoot}
       />
@@ -218,11 +251,11 @@ export default function Vanaspatyam() {
           {/* A board under the crosshair takes the sight over from the plant
               behind it: what a click does here is read, not meet. */}
           <Crosshair
-            aimed={aimedBoard ?? hovered}
+            aimed={aimedSight ?? hovered}
             open={!!hovered && hovered.id === metId}
             label={
-              aimedBoard
-                ? boardId === aimedBoard.id
+              aimedBoard || aimedPlaque
+                ? boardId === aimedBoardId
                   ? 'Click to put down'
                   : 'Click to read'
                 : undefined
@@ -355,10 +388,36 @@ export default function Vanaspatyam() {
       <div
         ref={boardRef}
         className="pointer-events-none fixed top-0 left-0 z-30"
-        style={{ width: 'clamp(19rem, 52vw, 44rem)', willChange: 'transform' }}
+        style={{
+          /* The bed boards are landscape and the plaque is a tall portrait,
+             so they cannot share one width — a width that suits the boards
+             would stand the plaque taller than the window. It is the board
+             that names the whole garden, though, so it is given as much
+             height as the window will spare: the width below is set from
+             the height it works out at, the art being roughly 1:1.75. */
+          width: plaqueUp ? 'clamp(14rem, 46vh, 30rem)' : 'clamp(19rem, 52vw, 44rem)',
+          willChange: 'transform',
+        }}
       >
         <AnimatePresence>
-          {board && (
+          {plaqueUp ? (
+            <motion.img
+              key="plaque"
+              src={PLAQUE_ART}
+              alt={`${PLAQUE.title} — ${PLAQUE.subtitle.replace(/[()]/g, '')}, ${PLAQUE.opened.toLowerCase()}`}
+              initial={{ opacity: 0, scale: 0.965 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.985 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full rounded-[6px] shadow-[0_28px_64px_-22px_rgb(0_0_0/0.6)]"
+              /* The frame is put in place before the browser paints, and it is
+                 measured to do it. An image has no height until it has decoded,
+                 so without the art's own ratio declared here the card measures
+                 as nothing, sits where the pointer is rather than centred on
+                 it, and hangs off the bottom of the window. */
+              style={{ aspectRatio: `${PLAQUE_ART_W} / ${PLAQUE_ART_H}` }}
+            />
+          ) : board ? (
             <motion.div
               key={board.id}
               initial={{ opacity: 0, scale: 0.965 }}
@@ -371,7 +430,7 @@ export default function Vanaspatyam() {
                 className="overflow-hidden rounded-[6px] shadow-[0_28px_64px_-22px_rgb(0_0_0/0.6)]"
               />
             </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
       </div>
 

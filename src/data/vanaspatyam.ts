@@ -59,8 +59,10 @@ export const GARDEN = {
   gate: { z: 13.2, halfWidth: 1.3 },
   /** Paved apron inside the gate, clear of the first rank. */
   apron: { z: 12.55, depth: 1.7 },
-  /** The dedication plaque, standing to the east of the gate. */
-  plaque: { x: 2.9, z: 12.3, rotation: -0.35 },
+  /** The dedication plaque, standing on the apron east of the gate,
+   * facing whoever walks in — it names the garden, so it is the one
+   * thing that has to be legible before anything else is. */
+  plaque: { x: 2.7, z: 12.4, rotation: -0.35 },
 } as const
 
 export interface GardenBedPlot {

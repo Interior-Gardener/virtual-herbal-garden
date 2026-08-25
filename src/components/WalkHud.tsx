@@ -18,7 +18,9 @@ export function Crosshair({
   open,
   label,
 }: {
-  aimed: Plant | undefined
+  /* Only the accent is read off it, which is what lets the sight settle on
+     something that is not a plant — the dedication plaque — as well. */
+  aimed: Pick<Plant, 'accent'> | undefined
   open: boolean
   /** Overrides the prompt — a label board is read, not met. */
   label?: string

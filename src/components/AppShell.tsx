@@ -143,8 +143,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [presenting, setPresenting] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+  /* Routes that ARE the viewport: a canvas fills the window, owns its own
+   * camera, and must not scroll. The doorway at '/' looks immersive but is
+   * an ordinary document — a heading and two cards — so it is not one of
+   * these; locking it to h-dvh with the overflow hidden was cutting the
+   * second card off on any short window with no way to scroll down to it. */
   const immersive =
-    location.pathname === '/' ||
     location.pathname === '/garden' ||
     location.pathname === '/vanaspatyam' ||
     location.pathname === '/quiz' ||

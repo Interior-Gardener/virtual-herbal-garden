@@ -62,6 +62,8 @@ export interface LeafBuildOptions {
   thickness?: number
   /** Horny marginal prickles, as on an aloe. 0 = none, 1 = long teeth. */
   teeth?: number
+  /** Blade puckered between its veins, as a mint or a sage is. 0–1. */
+  rugose?: number
   /** Longitudinal segments. */
   rows?: number
   /** Segments across the blade (per half). */
@@ -83,12 +85,23 @@ export function buildLeafGeometry(opts: LeafBuildOptions): THREE.BufferGeometry 
     curl = 0.25,
     thickness = 0,
     teeth = 0,
+    rugose = 0,
     rows = 9,
     cols = 3,
   } = opts
 
   const notch = notchDepth(shape)
   const scallops = 9
+  /* A wrinkled blade is the blade quilting between its lateral veins: it
+   * lifts in the panels and creases back down along each vein. Dropped
+   * below eight rows, where the mesh has too few samples per crease to
+   * show one and renders it as banding instead. */
+  const quilt = rows >= 8 ? rugose : 0
+  /* Lateral veins leave the midrib at an angle, so the creases run
+   * diagonally out toward the margin rather than straight across — the
+   * skew is what stops the pucker reading as corrugated iron. */
+  const VEIN_PAIRS = 2.5
+  const VEIN_SKEW = 0.85
   const halfW = width * 0.5
   const shells = thickness > 0 ? 2 : 1
   const cross = cols * 2 + 1
@@ -126,8 +139,21 @@ export function buildLeafGeometry(opts: LeafBuildOptions): THREE.BufferGeometry 
         const zDroop = -droop * length * t * t
         const zCurl = curl * rowHalf * s * s
         const lens = thickness > 0 ? thickness * profile * Math.sqrt(Math.max(0, 1 - s * s)) : 0
+        /* `abs` of the wave, not the wave itself: the panels all lift the
+         * same way and meet in a crease at each vein, which is what a
+         * puckered leaf does. A plain cosine rippled it up and down like
+         * a wave instead. Held flat along the midrib, where the leaf is
+         * genuinely pinned. */
+        const zQuilt =
+          quilt > 0
+            ? quilt *
+              halfW *
+              0.17 *
+              Math.abs(Math.sin((t * VEIN_PAIRS + Math.abs(s) * VEIN_SKEW) * Math.PI)) *
+              Math.pow(Math.sin(Math.abs(s) * Math.PI), 0.55)
+            : 0
 
-        positions.push(x, y, zDroop + zCurl + sign * lens)
+        positions.push(x, y, zDroop + zCurl + zQuilt + sign * lens)
         uvs.push((s + 1) * 0.5, t)
         flex.push(t * t)
       }
@@ -212,8 +238,16 @@ export function buildLeafUnit(
   const compound: CompoundType = leaf.compound ?? 'simple'
   // Leaflets are small on screen and numerous — they get a coarser mesh.
   const fine = compound === 'simple'
-  const rows = fine ? quality.rows : Math.max(2, Math.round(quality.rows * 0.5))
-  const cols = fine ? quality.cols : 1
+  /* A puckered blade is all surface: at the nine rows a smooth leaf is
+   * happy with, each crease gets three samples and shows up as a stripe.
+   * It only costs the one or two species that ask for it. */
+  const detailed = fine && (leaf.rugose ?? 0) > 0
+  const rows = fine
+    ? detailed
+      ? Math.round(quality.rows * 1.6)
+      : quality.rows
+    : Math.max(2, Math.round(quality.rows * 0.5))
+  const cols = fine ? (detailed ? quality.cols + 1 : quality.cols) : 1
   const blade = () =>
     buildLeafGeometry({
       shape: leaf.shape,
@@ -224,6 +258,7 @@ export function buildLeafUnit(
       curl: leaf.curl,
       thickness: leaf.thickness,
       teeth: leaf.teeth,
+      rugose: leaf.rugose,
       rows,
       cols,
     })

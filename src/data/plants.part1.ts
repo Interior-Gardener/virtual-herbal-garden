@@ -95,25 +95,45 @@ export const plantsPart1: PlantEntry[] = [
     ],
     difficulty: 1,
     accent: '#5b8f4f',
+    /* Built to the morphology above rather than by eye: an erect,
+     * much-branched undershrub of 30–75 cm, hairy square stems, opposite
+     * ovate leaves of 2–5 cm with a shallowly toothed margin, and the
+     * whorled purple racemes standing clear of the foliage. The leaves
+     * were half as large again as the text describes, which was most of
+     * what made it read as a generic bush. */
     model: {
       archetype: 'herb',
-      height: 0.62,
-      stem: { color: '#6a7f4a', radius: 0.012, curve: 0.25, square: true },
-      branching: { levels: 2, count: 4, angle: 42, startAt: 0.25, taper: 0.65 },
+      height: 0.56,
+      // Purple-flushed green, as the stems of a well-grown plant go.
+      stem: { color: '#63753f', radius: 0.0095, curve: 0.22, square: true },
+      // Much-branched, and branching low: a tulsi is bushy from the base.
+      branching: { levels: 3, count: 3, angle: 40, startAt: 0.16, taper: 0.6 },
       leaf: {
         shape: 'ovate',
-        length: 0.085,
-        width: 0.052,
+        // 4.5 x 2.7 cm — mid-range of the 2–5 cm the description gives.
+        length: 0.045,
+        width: 0.027,
+        // Opposite pairs, each a quarter-turn on the last: decussate,
+        // which the generator already does for `opposite`.
         arrangement: 'opposite',
-        density: 7,
-        top: '#4e8a44',
-        bottom: '#7aa863',
-        serration: 0.55,
-        droop: 0.2,
-        curl: 0.25,
-        gloss: 0.35,
+        density: 8,
+        top: '#4b7b3d',
+        bottom: '#7ba169',
+        // Shallowly toothed, not cut: tulsi's margin is only subserrate.
+        serration: 0.36,
+        droop: 0.16,
+        curl: 0.2,
+        // Matt and finely hairy rather than glossy — it is not a laurel.
+        gloss: 0.18,
       },
-      flower: { form: 'spike', color: '#a06fb8', centre: '#e8dcc0', size: 0.014, count: 5, petals: 5 },
+      flower: {
+        form: 'verticillaster',
+        color: '#b98cd0',
+        centre: '#efe3c6',
+        size: 0.011,
+        count: 4,
+        petals: 5,
+      },
       ground: 'soil',
     },
   },

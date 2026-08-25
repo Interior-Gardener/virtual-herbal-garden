@@ -310,25 +310,61 @@ export const plantsPart2: PlantEntry[] = [
     ],
     difficulty: 1,
     accent: '#4faa74',
+    /* Built to the morphology above: 30–90 cm, square purplish stems,
+     * opposite lanceolate leaves of 4–9 cm, wrinkled and sharply toothed,
+     * and lilac flowers in slender terminal spikes. What it was missing
+     * was the wrinkling — a spearmint leaf you would know blindfolded by
+     * its puckered surface was coming out as a smooth blade. */
     model: {
       archetype: 'herb',
-      height: 0.42,
-      stem: { color: '#6f9a55', radius: 0.008, curve: 0.3, square: true },
-      branching: { levels: 2, count: 4, angle: 45, startAt: 0.2, taper: 0.72 },
+      // As it is actually kept: a low dense mound, cut back for the kitchen
+      // long before it reaches the 90 cm it is capable of.
+      height: 0.4,
+      // "Square, often purplish": green carrying the purple, not pure green.
+      stem: { color: '#5f7a4c', radius: 0.008, curve: 0.28, square: true },
+      /* It runs and it thickets — more orders of branching, starting low,
+       * so a plant reads as the mat mint actually makes rather than as a
+       * few stems in a row. */
+      branching: { levels: 3, count: 3, angle: 44, startAt: 0.14, taper: 0.68 },
+      /* Drawn from the pudina actually grown in Indian pots and kitchen
+       * beds, which the description's "lanceolate to ovate" allows but
+       * which sits hard at the ovate end: a broad blade barely longer
+       * than it is wide, rounded at the base, and a bright yellow-green
+       * rather than the deep green of a garden mint. */
       leaf: {
-        shape: 'lanceolate',
-        length: 0.07,
-        width: 0.035,
+        shape: 'ovate',
+        // Roughly 5.5 x 4 cm — nearly as broad as it is long.
+        length: 0.055,
+        width: 0.04,
         arrangement: 'opposite',
-        density: 8,
-        top: '#49a05a',
-        bottom: '#7cbd7f',
-        serration: 0.8,
-        droop: 0.15,
-        curl: 0.35,
+        density: 9,
+        top: '#57a742',
+        bottom: '#8cc472',
+        /* Crenate, not serrate: the teeth are scalloped and blunt, and
+         * cutting them sharply was making it read as a nettle. */
+        serration: 0.5,
+        droop: 0.12,
+        // Cupping is not wrinkling: the blade quilts between its veins,
+        // and doing that as `curl` alone only made it a trough.
+        curl: 0.18,
+        // Deeply puckered — on this plant it is the first thing you see.
+        rugose: 0.92,
         gloss: 0.3,
       },
-      flower: { form: 'spike', color: '#c9b8e0', size: 0.01, count: 3, petals: 4 },
+      /* Lamiaceae, like the tulsi — but where tulsi's raceme is interrupted,
+       * spearmint's whorls crowd into one dense terminal spike, which is
+       * what `whorlGap` is closing up here. */
+      flower: {
+        form: 'verticillaster',
+        color: '#c9b8e0',
+        centre: '#efe8f4',
+        size: 0.009,
+        /* Sparing: cropped pudina is picked over long before it runs to
+         * flower, so a plant covered in spikes would be the wrong plant. */
+        count: 2,
+        petals: 4,
+        whorlGap: 1.15,
+      },
       ground: 'soil',
     },
   },

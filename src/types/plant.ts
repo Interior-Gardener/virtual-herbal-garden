@@ -63,18 +63,32 @@ export interface PlantModelSpec {
     gloss?: number
     /** Horny marginal prickles, as on an aloe. 0–1. */
     teeth?: number
+    /** Blade puckered between its veins — the mint and sage surface. 0–1. */
+    rugose?: number
     /** Pale flecking across the blade, 0–1. */
     spots?: number
     /** Colour of that flecking; defaults to a chalky white. */
     spotColor?: string
   }
   flower?: {
-    form: 'spike' | 'umbel' | 'panicle' | 'solitary' | 'cluster' | 'catkin'
+    /**
+     * `verticillaster` is the mint family's own: not a spike of scattered
+     * florets but a bare erect rachis carrying rings of them at intervals,
+     * which is what makes a tulsi or a mint recognisable across a bed.
+     */
+    form: 'spike' | 'umbel' | 'panicle' | 'solitary' | 'cluster' | 'catkin' | 'verticillaster'
     color: string
     centre?: string
     size: number
     count: number
     petals?: number
+    /**
+     * `verticillaster` only: spacing between whorls, in floret widths.
+     * Tulsi's raceme is interrupted — bare rachis showing between the
+     * rings — where spearmint's is crowded into a dense terminal spike.
+     * Defaults to the interrupted kind.
+     */
+    whorlGap?: number
   }
   fruit?: {
     shape: 'round' | 'ovoid' | 'pod' | 'berry'

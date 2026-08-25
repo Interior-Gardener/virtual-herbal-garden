@@ -487,6 +487,55 @@ function attachFlowers(ctx: BuildContext) {
         }
         break
       }
+      /*
+       * The mint family's inflorescence, and the thing that reads as
+       * "tulsi" from further away than any leaf does: an erect rachis
+       * standing clear of the foliage, bare between rings of florets
+       * rather than crowded along its whole length, opening from the
+       * bottom up so the top of the spike is still in bud.
+       */
+      case 'verticillaster': {
+        const whorls = Math.max(3, Math.round(7 * q.floret))
+        const perWhorl = Math.max(3, Math.round(6 * q.floret))
+        /* The raceme is terminal but stands up whatever the branch that
+         * carries it was doing, which is why it clears the leaves. */
+        const axis = dir.clone().lerp(UP, 0.62).normalize()
+        const gap = flower.size * (flower.whorlGap ?? 2.4)
+        const rachis = gap * whorls + flower.size
+        const stalk = buildTube(
+          [base, base.clone().addScaledVector(axis, rachis * 0.5), base.clone().addScaledVector(axis, rachis)],
+          flower.size * 0.2,
+          flower.size * 0.09,
+          4,
+          5,
+        )
+        ctx.stems.push(stamp(stalk, tip.phase, 0))
+
+        // A frame on the rachis to hang each ring off squarely.
+        const side = new THREE.Vector3(1, 0, 0)
+        side.addScaledVector(axis, -side.dot(axis))
+        if (side.lengthSq() < 1e-6) side.set(0, 0, 1).addScaledVector(axis, -axis.z)
+        side.normalize()
+        const other = new THREE.Vector3().crossVectors(axis, side).normalize()
+
+        for (let w = 0; w < whorls; w++) {
+          const up = w / whorls
+          // Open at the foot, still budding at the tip.
+          const open = 1 - up * 0.55
+          const ring = base.clone().addScaledVector(axis, flower.size + w * gap)
+          // Successive whorls sit half a step round from the last.
+          const offset = w * (Math.PI / perWhorl)
+          for (let i = 0; i < perWhorl; i++) {
+            const a = offset + (i / perWhorl) * Math.PI * 2
+            const at = ring
+              .clone()
+              .addScaledVector(side, Math.cos(a) * flower.size * 0.8)
+              .addScaledVector(other, Math.sin(a) * flower.size * 0.8)
+            placeFloret(ctx, at, open, tip.phase + w * 0.4 + i * 0.12)
+          }
+        }
+        break
+      }
       case 'umbel': {
         const florets = Math.max(4, Math.round(9 * q.floret))
         const head = base.clone().addScaledVector(dir, flower.size * 1.4)

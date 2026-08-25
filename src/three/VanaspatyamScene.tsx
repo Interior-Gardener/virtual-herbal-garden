@@ -1,10 +1,10 @@
-import { Suspense, useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef, type RefObject } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Html, OrbitControls } from '@react-three/drei'
+import { Html, OrbitControls, useTexture } from '@react-three/drei'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
-import { BED_PLOTS, GARDEN, PLAQUE, POND_PLANT, plotPlants, type GardenBedPlot } from '../data/vanaspatyam'
+import { BED_PLOTS, GARDEN, POND_PLANT, plotPlants, type GardenBedPlot } from '../data/vanaspatyam'
 import { PlantObject } from './PlantObject'
 import { SkyDome } from './GardenScene'
 import { plantById } from '../data/plants'
@@ -16,6 +16,7 @@ import { useGarden } from '../store/useGarden'
 import { makeRng, hashSeed } from './procedural/rng'
 import { WalkControls, type Obstacle } from './WalkControls'
 import type { Plant } from '../types/plant'
+import { asset } from '../lib/asset'
 
 /* ------------------------------------------------------------------ *
  * Vanaspatyam, rebuilt.
@@ -38,6 +39,35 @@ const PATH_DARK = '#23211f'
 const GRAVEL = '#9a9080'
 const KERB = '#8d5b45'
 const HEDGE = '#3f6b3a'
+
+/* The photographed dedication board by the gate. Its own pixels are
+ * 949 x 1658, and the plate is sized from that ratio so the print is
+ * never stretched — height first, because the board's height against a
+ * standing visitor is the thing that has to look right. */
+export const PLAQUE_ART = asset('/cards/vanaspatyam-entry-board.png')
+/** The scan's own pixel grid, which everything drawn from it is sized by. */
+export const PLAQUE_ART_W = 949
+export const PLAQUE_ART_H = 1658
+const PLAQUE_ASPECT = PLAQUE_ART_W / PLAQUE_ART_H
+const PLAQUE_H = 1.34
+const PLAQUE_W = PLAQUE_H * PLAQUE_ASPECT
+/** Clear of the ground, the way the real one sits on its footing. */
+const PLAQUE_LIFT = 0.06
+
+/**
+ * The plaque's slab, held here so the label boards can be hidden behind
+ * it.
+ *
+ * A board's label is DOM, not geometry: it is composited over the canvas
+ * and so has no idea what is in front of it, which is why the print of a
+ * board standing behind the plaque came through the plaque. Handing the
+ * slab to those labels lets them test the one thing that is ever big
+ * enough and near enough to stand in front of them. Nothing else in the
+ * garden is, so nothing else is checked.
+ *
+ * There is one plaque, so one handle rather than a context.
+ */
+const plaqueOccluder: RefObject<THREE.Object3D | null> = { current: null }
 const HEDGE_DARK = '#1b2d1a'
 
 /**
@@ -434,6 +464,19 @@ function Bed({ plot, dark }: { plot: GardenBedPlot; dark: boolean }) {
 export type BoardRead = (plantId: string | null, clientX?: number, clientY?: number) => void
 
 /**
+ * The same, for the dedication plaque, which names no plant: whether the
+ * pointer is on it, and where on screen to hang the reproduction.
+ */
+export type PlaqueRead = (on: boolean, clientX?: number, clientY?: number) => void
+
+/**
+ * The plaque stands in for a plant id wherever a board is identified —
+ * hovering it, aiming at it on foot, and raising its card all run
+ * through the bed boards' machinery rather than a second set of it.
+ */
+export const PLAQUE_BOARD_ID = '__plaque'
+
+/**
  * The label board: a white plate raked back on a single black post, the
  * prop that makes the place recognisable more than any plant does.
  *
@@ -500,6 +543,10 @@ function LabelBoard({
             transform
             distanceFactor={2.6}
             zIndexRange={[8, 0]}
+            /* Hidden outright when the plaque is between it and the camera —
+               the label is not dimmed or blended, it is simply not drawn, so
+               nothing about how it looks the rest of the time changes. */
+            occlude={[plaqueOccluder as RefObject<THREE.Object3D>]}
             style={{ pointerEvents: 'none' }}
           >
             {/* The plate is 0.62 wide at distanceFactor 2.6, which works out at
@@ -647,29 +694,84 @@ function Gate({ dark }: { dark: boolean }) {
   )
 }
 
-/** The dedication plaque: steel plate in a black granite frame. */
-function Plaque({ dark, showText }: { dark: boolean; showText: boolean }) {
+/**
+ * The dedication plaque that stands beside the gate.
+ *
+ * This one is not drawn — it is the photograph of the real board,
+ * frame and all, mapped onto the plate. That is what makes it read as
+ * a thing standing in the garden rather than a caption floating in it:
+ * it takes the scene's own light, it foreshortens as you walk past,
+ * and from the side you see the slab it is printed on. The type on it
+ * is the type on the real one, in both scripts, which no amount of
+ * re-setting it in HTML would have matched.
+ */
+function Plaque({
+  dark,
+  onRead,
+}: {
+  dark: boolean
+  /** Pointer on the plaque — the route raises the full board, as for a bed. */
+  onRead?: PlaqueRead
+}) {
   const { x, z, rotation } = GARDEN.plaque
+  const art = useTexture(PLAQUE_ART)
+  /* The scan is a colour photograph, so it has to be read as sRGB or the
+   * cream ground comes out washed and the black frame flat grey. */
+  useEffect(() => {
+    art.colorSpace = THREE.SRGBColorSpace
+    art.anisotropy = 8
+    art.needsUpdate = true
+  }, [art])
+
   return (
     <group position={[x, 0, z]} rotation={[0, rotation, 0]}>
-      <mesh position={[0, 0.62, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.78, 1.24, 0.09]} />
-        <meshStandardMaterial color={dark ? '#0d0f10' : '#1b1c1e'} roughness={0.35} />
+      {/* The slab behind the print: what you see edge-on, and what the
+          print would otherwise have no thickness to sit on. */}
+      <mesh ref={plaqueOccluder} position={[0, PLAQUE_H / 2 + PLAQUE_LIFT, 0]} castShadow receiveShadow>
+        <boxGeometry args={[PLAQUE_W, PLAQUE_H, 0.075]} />
+        <meshStandardMaterial color={dark ? '#0b0d0e' : '#17181a'} roughness={0.4} />
       </mesh>
-      <mesh position={[0, 0.64, 0.05]}>
-        <planeGeometry args={[0.66, 1.06]} />
-        <meshStandardMaterial color={dark ? '#5d6360' : '#b9bdb2'} roughness={0.28} metalness={0.75} />
-      </mesh>
-      {showText && (
-        <Html position={[0, 0.64, 0.055]} transform distanceFactor={2.2} zIndexRange={[8, 0]} style={{ pointerEvents: 'none' }}>
-          <div className="w-[150px] px-2 text-center font-display text-stone-900">
-            <div className="text-[11px] font-bold tracking-[0.08em]">{PLAQUE.title}</div>
-            <div className="mt-0.5 text-[5.5px] tracking-wide">{PLAQUE.subtitle}</div>
-            <div className="mt-1 text-[5.5px]">{PLAQUE.opened}</div>
-            <div className="mt-1.5 border-t border-stone-500/60 pt-1 text-[10px]">{PLAQUE.devanagari}</div>
-          </div>
-        </Html>
-      )}
+      {/* The board itself, a hair proud of the slab on both faces so it is
+          legible whichever side you come round. The front carries the
+          pointer events for the whole plaque. */}
+      {[1, -1].map((face) => (
+        <mesh
+          key={face}
+          position={[0, PLAQUE_H / 2 + PLAQUE_LIFT, face * 0.039]}
+          rotation={[0, face > 0 ? 0 : Math.PI, 0]}
+          onPointerOver={
+            onRead
+              ? (e) => {
+                  e.stopPropagation()
+                  onRead(true, e.clientX, e.clientY)
+                }
+              : undefined
+          }
+          onPointerMove={
+            onRead
+              ? (e) => {
+                  e.stopPropagation()
+                  onRead(true, e.clientX, e.clientY)
+                }
+              : undefined
+          }
+          onPointerOut={onRead ? () => onRead(false) : undefined}
+        >
+          <planeGeometry args={[PLAQUE_W, PLAQUE_H]} />
+          {/* Unlit-ish: the print is matt paper behind glass, and letting it
+              go fully dark at dusk would lose the one sign that names the
+              place. A little emissive keeps it readable without making it
+              glow. */}
+          <meshStandardMaterial
+            map={art}
+            roughness={0.62}
+            metalness={0.05}
+            emissiveMap={art}
+            emissive="#ffffff"
+            emissiveIntensity={dark ? 0.32 : 0.16}
+          />
+        </mesh>
+      ))}
     </group>
   )
 }
@@ -977,6 +1079,8 @@ export interface VanaspatyamSceneProps {
   onWalkDismiss?: () => void
   /** Pointer on a bed's label board — see `BoardRead`. */
   onBoardRead?: BoardRead
+  /** Pointer on the dedication plaque — see `PlaqueRead`. */
+  onPlaqueRead?: PlaqueRead
   /** Crosshair on a board while walking, or null. */
   onBoardAim?: (plantId: string | null) => void
   /** Board clicked while walking. */
@@ -993,6 +1097,7 @@ function SceneContents({
   onWalkExit,
   onWalkDismiss,
   onBoardRead,
+  onPlaqueRead,
   onBoardAim,
   onBoardSelect,
   detail,
@@ -1150,7 +1255,11 @@ function SceneContents({
         onHover={onHover}
         walking={walking}
       />
-      <Plaque dark={dark} showText={detail !== 'low'} />
+      {/* Its own boundary: the plaque waits on a photograph, and the rest
+          of the garden should not wait with it. */}
+      <Suspense fallback={null}>
+        <Plaque dark={dark} onRead={walking ? undefined : onPlaqueRead} />
+      </Suspense>
 
       {/* The line of towers that crosses the site. One stands in the open
           ground between the back rank and the pond, exactly as it does on
@@ -1241,7 +1350,16 @@ function SceneContents({
           onAim={onHover}
           onSelect={onSelect}
           onDismiss={onWalkDismiss}
-          boards={boards.map(({ plant, position }) => ({ plantId: plant.id, position }))}
+          /* The plaque aims and clicks exactly as a bed's board does, so on
+             foot you read the garden's own name the same way you read a
+             plant's. */
+          boards={[
+            ...boards.map(({ plant, position }) => ({ plantId: plant.id, position })),
+            {
+              plantId: PLAQUE_BOARD_ID,
+              position: [GARDEN.plaque.x, PLAQUE_LIFT, GARDEN.plaque.z] as [number, number, number],
+            },
+          ]}
           onBoardAim={onBoardAim}
           onBoardSelect={onBoardSelect}
           obstacles={WALK_OBSTACLES}

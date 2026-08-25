@@ -28,9 +28,12 @@ function RouteFallback() {
 }
 
 /* The 3D routes own the full viewport and run their own camera moves, so
- * a crossfade on top of them only muddies the picture. Everything else
- * gets a short rise-and-fade between pages. */
-function isImmersive(pathname: string) {
+ * a crossfade on top of them only muddies the picture. The doorway is here
+ * too, not because it fills the viewport — it scrolls like any other page —
+ * but because it already brings its own header and cards in on arrival, and
+ * a page fade over the top of that is one animation too many. Everything
+ * else gets a short rise-and-fade between pages. */
+function skipsPageFade(pathname: string) {
   return (
     pathname === '/' ||
     pathname === '/garden' ||
@@ -43,16 +46,19 @@ function isImmersive(pathname: string) {
 function AnimatedRoutes() {
   const location = useLocation()
   const calm = useCalmMotion()
-  const immersive = isImmersive(location.pathname)
+  const noFade = skipsPageFade(location.pathname)
+  /* Only the canvas routes want the wrapper pinned to the viewport; the
+   * doorway has to be free to grow past it and scroll. */
+  const fillsViewport = noFade && location.pathname !== '/'
 
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
-        key={immersive ? 'immersive' : location.pathname}
-        className={immersive ? 'h-full' : undefined}
-        initial={calm || immersive ? false : { opacity: 0, y: 14 }}
+        key={noFade ? 'immersive' : location.pathname}
+        className={fillsViewport ? 'h-full' : undefined}
+        initial={calm || noFade ? false : { opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={calm || immersive ? undefined : { opacity: 0, y: -8 }}
+        exit={calm || noFade ? undefined : { opacity: 0, y: -8 }}
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
       >
         <Suspense fallback={<RouteFallback />}>

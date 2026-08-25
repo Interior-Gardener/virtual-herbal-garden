@@ -1,12 +1,12 @@
-import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { motion } from 'motion/react'
-import { plants, gardenBeds } from '../data/plants'
-import { BED_PLOTS, PLAQUE } from '../data/vanaspatyam'
-import { BotanicalPlate } from '../components/BotanicalPlate'
-import { Icon } from '../components/ui/Icon'
-import { useCalmMotion } from '../components/motion/Reveal'
-import type { Plant } from '../types/plant'
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "motion/react";
+import { plants, gardenBeds } from "../data/plants";
+import { BED_PLOTS, PLAQUE } from "../data/vanaspatyam";
+import { BotanicalPlate } from "../components/BotanicalPlate";
+import { Icon } from "../components/ui/Icon";
+import { useCalmMotion } from "../components/motion/Reveal";
+import type { Plant } from "../types/plant";
 
 /* ------------------------------------------------------------------ *
  * The doorway.
@@ -20,66 +20,75 @@ import type { Plant } from '../types/plant'
  * ------------------------------------------------------------------ */
 
 interface Door {
-  to: string
-  eyebrow: string
-  title: string
-  sub?: string
-  body: string
-  facts: string[]
-  accent: string
-  plants: Plant[]
+  to: string;
+  eyebrow: string;
+  title: string;
+  sub?: string;
+  body: string;
+  facts: string[];
+  accent: string;
+  plants: Plant[];
 }
 
 export default function Gateway() {
-  const calm = useCalmMotion()
+  const calm = useCalmMotion();
 
   const doors = useMemo<Door[]>(() => {
     const sample = (ids: string[]) =>
-      ids.map((id) => plants.find((p) => p.id === id)).filter((p): p is Plant => Boolean(p))
+      ids
+        .map((id) => plants.find((p) => p.id === id))
+        .filter((p): p is Plant => Boolean(p));
     return [
       {
-        to: '/garden',
-        eyebrow: 'The designed garden',
-        title: 'Vanaspati',
-        body: 'Twenty-five medicinal plants set out in themed beds — digestion, immunity, the mind — so that walking the garden walks you through what the medicine is for.',
+        to: "/garden",
+        eyebrow: "The designed garden",
+        title: "Vanaspati",
+        body: "Twenty-five medicinal plants set out in themed beds — digestion, immunity, the mind — so that walking the garden walks you through what the medicine is for.",
         facts: [
           `${plants.length} species`,
           `${gardenBeds.length} themed beds`,
-          'Guided tours and a narrated opening',
+          "Guided tours and a narrated opening",
         ],
-        accent: '#5c8a4a',
-        plants: sample(['tulsi', 'turmeric', 'ashwagandha']),
+        accent: "#5c8a4a",
+        plants: sample(["tulsi", "turmeric", "ashwagandha"]),
       },
       {
-        to: '/vanaspatyam',
-        eyebrow: 'The real garden',
+        to: "/vanaspatyam",
+        eyebrow: "The real garden",
         title: PLAQUE.title,
         sub: PLAQUE.devanagari,
-        body: 'Our own Ayurvedic garden on campus, rebuilt from its plan and from photographs taken on the ground: the south gate, the spine between four ranks of kerbed beds, the lily pond, and the pylons standing over all of it.',
+        body: "Our own Ayurvedic garden on campus, rebuilt from its plan and from photographs taken on the ground: the south gate, the spine between four ranks of kerbed beds, the lily pond, and the pylons standing over all of it.",
         facts: [
-          'Opened 12 February 2016',
+          "Opened 12 February 2016",
           `${BED_PLOTS.length} beds, 30m × 25m`,
-          'Walkable, gate to pond',
+          "Walkable, gate to pond",
         ],
-        accent: '#8a6a2f',
-        plants: sample(['neem', 'bael', 'arjuna']),
+        accent: "#8a6a2f",
+        plants: sample(["neem", "bael", "arjuna"]),
       },
-    ]
-  }, [])
+    ];
+  }, []);
 
+  /* overflow-x-clip, not overflow-hidden: the ground wash needs containing
+   * sideways, but hiding the vertical overflow too meant that on a short or
+   * narrow window — where the two doors stack — everything past the fold was
+   * simply cut off, with no way to scroll to it. */
   return (
-    <div className="relative min-h-dvh overflow-hidden">
+    <div className="relative min-h-dvh overflow-x-clip">
       {/* A quiet ground so neither door has to fight a photograph. */}
       <div
         className="pointer-events-none absolute inset-0 -z-10"
         style={{
           background:
-            'radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 62%)',
+            "radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 62%)",
         }}
         aria-hidden
       />
 
-      <div className="mx-auto flex min-h-dvh max-w-6xl flex-col justify-center px-4 py-16 sm:px-6">
+      {/* Centred when it fits, top-aligned when it does not: plain centring
+          pushes overflow off both ends, and the half above the viewport can
+          never be scrolled back to. */}
+      <div className="mx-auto flex min-h-dvh max-w-6xl flex-col justify-center-safe px-4 py-10 sm:px-6 sm:py-16">
         <motion.header
           initial={calm ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -93,19 +102,23 @@ export default function Gateway() {
             Two gardens, the same plants.
           </h1>
           <p className="mt-3 text-[0.98rem] leading-relaxed text-ink-soft text-balance-pretty">
-            One is arranged by what the plants treat. The other is a real garden on our campus,
-            rebuilt as it stands. Pick the door you want to come in by — you can cross between them
-            whenever you like.
+            One is arranged by what the plants treat. The other is a real garden
+            on our campus, rebuilt as it stands. Pick the door you want to come
+            in by — you can cross between them whenever you like.
           </p>
         </motion.header>
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-2">
+        <div className="mt-8 grid gap-5 sm:mt-10 lg:grid-cols-2">
           {doors.map((door, i) => (
             <motion.div
               key={door.to}
               initial={calm ? false : { opacity: 0, y: 22 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.12 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
+              transition={{
+                duration: 0.55,
+                delay: 0.12 + i * 0.1,
+                ease: [0.16, 1, 0.3, 1],
+              }}
             >
               <Link
                 to={door.to}
@@ -137,7 +150,9 @@ export default function Gateway() {
                   <h2 className="mt-1.5 font-display text-2xl leading-none font-semibold tracking-[-0.02em]">
                     {door.title}
                     {door.sub && (
-                      <span className="ml-2 text-lg font-normal text-ink-soft">{door.sub}</span>
+                      <span className="ml-2 text-lg font-normal text-ink-soft">
+                        {door.sub}
+                      </span>
                     )}
                   </h2>
                   <p className="mt-2.5 text-[0.9rem] leading-relaxed text-ink-soft text-balance-pretty">
@@ -146,8 +161,14 @@ export default function Gateway() {
 
                   <ul className="mt-4 space-y-1.5">
                     {door.facts.map((fact) => (
-                      <li key={fact} className="flex items-center gap-2 text-[0.8rem] text-ink-faint">
-                        <span className="size-1.5 rounded-full" style={{ background: door.accent }} />
+                      <li
+                        key={fact}
+                        className="flex items-center gap-2 text-[0.8rem] text-ink-faint"
+                      >
+                        <span
+                          className="size-1.5 rounded-full"
+                          style={{ background: door.accent }}
+                        />
                         {fact}
                       </li>
                     ))}
@@ -167,5 +188,5 @@ export default function Gateway() {
         </div>
       </div>
     </div>
-  )
+  );
 }
