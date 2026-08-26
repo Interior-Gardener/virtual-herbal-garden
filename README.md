@@ -1,8 +1,60 @@
 # Vanaspati — Virtual Herbal Garden
 
+<div align="center">
+
+  <p>
+    <img src="https://img.shields.io/badge/Virtual-Herbal%20Garden-2E7D32?style=for-the-badge" alt="Virtual Herbal Garden" />
+    <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=000000" alt="React 19" />
+    <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/Vite-Ready-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+  </p>
+
+  <h3>Explore medicinal plants through a living 3D herbal garden</h3>
+
+  <p>
+    <a href="https://tushar-surti.github.io/virtual-herbal-garden/">🌿 Live Demo</a>
+    &nbsp;•&nbsp;
+    <a href="#a-quick-look">✨ Highlights</a>
+    &nbsp;•&nbsp;
+    <a href="#running-it">🚀 Run Locally</a>
+  </p>
+
+</div>
+
 An interactive 3D garden of AYUSH medicinal plants. Twenty-five species, six themed beds,
 six guided tours, and a compendium written the way a vaidya would describe a plant —
 rasa, guna, virya, vipaka, the part that carries the medicine, and the cautions that matter.
+
+> 🌿 Step into the experience: [Live Demo](https://tushar-surti.github.io/virtual-herbal-garden/)
+
+## A quick look
+
+<div align="center">
+
+<table>
+  <tr>
+    <td><strong>25</strong><br/>Medicinal species</td>
+    <td><strong>6</strong><br/>Themed garden beds</td>
+    <td><strong>6</strong><br/>Guided tours</td>
+    <td><strong>3D</strong><br/>Interactive plant exploration</td>
+  </tr>
+</table>
+
+</div>
+
+## Features at a glance
+
+| 🌱 Explore | 🔍 Discover | 📚 Learn | 🎧 Listen |
+| --- | --- | --- | --- |
+| Walk through the 3D herbal garden and inspect plants up close. | Search by names, uses, parts, and conservation details. | Read botanical and Ayurvedic knowledge side by side. | Use narration and guided tours for a more immersive experience. |
+
+### Why this project stands out
+
+- Beautiful, immersive garden-style interface inspired by a living herbarium
+- Procedurally generated botanical forms driven by structured plant data
+- Ayurvedic insights visualized alongside botanical information
+- Search, compare, tours, atlas, and personal garden features in one place
+- Built for learning, exploration, and presentation
 
 Built for the Smart India Hackathon problem statement on a Virtual Herbal Garden.
 
