@@ -15,12 +15,21 @@ export type LeafShape =
   | 'spatulate'
   | 'succulent'
   | 'deltoid'
+  /** Round blade meeting its stalk at the middle, not the edge — a lotus pad. */
+  | 'peltate'
 
 export type CompoundType = 'simple' | 'trifoliate' | 'pinnate' | 'palmate' | 'bipinnate'
 
 export type LeafArrangement = 'alternate' | 'opposite' | 'whorled' | 'basal'
 
-export type Archetype = 'herb' | 'shrub' | 'tree' | 'climber' | 'rosette' | 'grass' | 'creeper'
+/**
+ * `aquatic` is Nelumbo's habit and nothing else's: a rhizome in the mud
+ * throwing up unbranched stalks one at a time, each carrying a single leaf
+ * held clear of the water, with the flower scapes standing higher again.
+ * Drawn as a rosette it sat flat on the surface like a water lily, which is
+ * the one thing a lotus is always distinguished from.
+ */
+export type Archetype = 'herb' | 'shrub' | 'tree' | 'climber' | 'rosette' | 'grass' | 'creeper' | 'aquatic'
 
 export interface PlantModelSpec {
   archetype: Archetype
@@ -75,13 +84,19 @@ export interface PlantModelSpec {
      * `verticillaster` is the mint family's own: not a spike of scattered
      * florets but a bare erect rachis carrying rings of them at intervals,
      * which is what makes a tulsi or a mint recognisable across a bed.
+     *
+     * `lotus` is likewise its own thing — many petals in offset whorls around
+     * a flat-topped receptacle and a collar of stamens — and `solitary` drew
+     * it as a daisy.
      */
-    form: 'spike' | 'umbel' | 'panicle' | 'solitary' | 'cluster' | 'catkin' | 'verticillaster'
+    form: 'spike' | 'umbel' | 'panicle' | 'solitary' | 'cluster' | 'catkin' | 'verticillaster' | 'lotus'
     color: string
     centre?: string
     size: number
     count: number
     petals?: number
+    /** `lotus` only: 0 = every bloom a tight bud, 1 = every bloom fully out. */
+    openness?: number
     /**
      * `verticillaster` only: spacing between whorls, in floret widths.
      * Tulsi's raceme is interrupted — bare rachis showing between the

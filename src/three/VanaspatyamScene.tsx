@@ -11,7 +11,8 @@ import { plantById } from '../data/plants'
 import { tickWind, windUniforms } from './materials'
 import { daylightAt } from './daylight'
 import { useDetail, dprFor } from '../hooks/useDetail'
-import type { Detail } from './procedural/plant'
+import { buildLotusBloom, type Detail } from './procedural/plant'
+import { buildLeafGeometry } from './procedural/leaf'
 import { useGarden } from '../store/useGarden'
 import { makeRng, hashSeed } from './procedural/rng'
 import { WalkControls, type Obstacle } from './WalkControls'
@@ -777,6 +778,119 @@ function Plaque({
 }
 
 /** Water lilies, the pond thick with them as the photographs show. */
+/** Strips a part back to what a plain material needs, so parts built by
+ * different generators can be merged into one buffer. */
+function plainPart(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  const out = new THREE.BufferGeometry()
+  if (!geo.attributes.normal) geo.computeVertexNormals()
+  out.setAttribute('position', geo.attributes.position)
+  out.setAttribute('normal', geo.attributes.normal)
+  out.setAttribute('uv', geo.attributes.uv)
+  if (geo.index) out.setIndex(geo.index)
+  return out
+}
+
+interface PondSurface {
+  pads: THREE.BufferGeometry
+  petals: THREE.BufferGeometry
+  /** Receptacles and flower stalks — both green, so both in one buffer. */
+  green: THREE.BufferGeometry
+  /** The stamen collars. */
+  gold: THREE.BufferGeometry | null
+}
+
+/**
+ * Everything floating on the water, merged into one buffer per colour.
+ *
+ * The pads were flat discs and the flowers on them were pink cones, which is
+ * what a lotus looks like from a hundred metres and nothing like one from the
+ * path. They are now dished blades held at the middle, the way a lotus pad
+ * sits, and real blooms at every stage of opening — some on the surface, some
+ * lifted clear of it on their own stalk, which is the habit that separates a
+ * lotus from the water lilies it shares the tank with.
+ */
+function pondSurface(radius: number, detail: Detail): PondSurface {
+  const rng = makeRng(hashSeed('vanaspatyam-pond'))
+  const count = detail === 'low' ? 70 : 150
+  const fine = detail !== 'low'
+  const padParts: THREE.BufferGeometry[] = []
+  const petalParts: THREE.BufferGeometry[] = []
+  const greenParts: THREE.BufferGeometry[] = []
+  const goldParts: THREE.BufferGeometry[] = []
+
+  for (let i = 0; i < count; i++) {
+    const a = rng.range(0, Math.PI * 2)
+    const r = Math.sqrt(rng.range(0, 1)) * (radius - 0.25)
+    const x = Math.cos(a) * r
+    const z = Math.sin(a) * r
+    const s = rng.range(0.16, 0.32)
+    // A quarter stay water lilies, cleft to the middle and lying flat; the
+    // tank has both, and the notch is the quickest way to tell them apart.
+    const lily = rng.range(0, 1) < 0.25
+
+    let pad: THREE.BufferGeometry
+    if (lily) {
+      pad = new THREE.CircleGeometry(s, fine ? 12 : 8, 0.35, Math.PI * 1.86)
+    } else {
+      pad = buildLeafGeometry({
+        shape: 'peltate',
+        length: s * 2,
+        width: s * 2,
+        droop: 0.04,
+        curl: 0.3,
+        rows: fine ? 6 : 4,
+        cols: fine ? 2 : 1,
+      })
+      // Built standing in the XY plane and held at one end; slide the hub back
+      // to the origin before laying it down.
+      pad.translate(0, -s, 0)
+    }
+    pad.rotateX(-Math.PI / 2)
+    pad.rotateY(rng.range(0, Math.PI * 2))
+    pad.translate(x, 0.075 + rng.range(0, 0.008), z)
+    padParts.push(plainPart(pad))
+
+    if (lily || rng.range(0, 1) > 0.2) continue
+
+    const openness = rng.range(0, 1) < 0.32 ? rng.range(0, 0.2) : rng.range(0.55, 1)
+    // Better than half stand on a stalk; the rest sit down on the water.
+    const lift = rng.range(0, 1) < 0.6 ? rng.range(0.12, 0.34) : 0.015
+    const bloom = buildLotusBloom({
+      size: s * 0.4,
+      petals: 18,
+      openness,
+      quality: fine ? 0.7 : 0.4,
+    })
+    const at = new THREE.Matrix4().compose(
+      new THREE.Vector3(x, 0.08 + lift, z),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rng.range(0, Math.PI * 2)),
+      new THREE.Vector3(1, 1, 1),
+    )
+    petalParts.push(plainPart(bloom.petals.applyMatrix4(at)))
+    greenParts.push(plainPart(bloom.receptacle.applyMatrix4(at)))
+    if (bloom.stamens) goldParts.push(plainPart(bloom.stamens.applyMatrix4(at)))
+    if (lift > 0.05) {
+      const stalk = new THREE.CylinderGeometry(0.008, 0.012, lift + 0.08, 5)
+      stalk.translate(x, 0.04 + (lift + 0.08) * 0.5, z)
+      greenParts.push(plainPart(stalk))
+    }
+  }
+
+  const fold = (parts: THREE.BufferGeometry[]) => {
+    if (parts.length === 0) return null
+    const merged = mergeGeometries(parts, false)
+    parts.forEach((part) => part.dispose())
+    return merged
+  }
+
+  return {
+    pads: fold(padParts) ?? new THREE.BufferGeometry(),
+    petals: fold(petalParts) ?? new THREE.BufferGeometry(),
+    green: fold(greenParts) ?? new THREE.BufferGeometry(),
+    gold: fold(goldParts),
+  }
+}
+
 function Pond({
   dark,
   detail,
@@ -806,25 +920,22 @@ function Pond({
       return {
         position: [Math.cos(a) * r, 0.05, Math.sin(a) * r] as [number, number, number],
         spin: rng.range(0, Math.PI * 2),
-        scale: rng.range(1.05, 1.5),
+        /* The aquatic habit already stands the flower scapes above the leaves,
+         * so the old 1.05–1.5 put blooms nearly two metres over the water. */
+        scale: rng.range(0.82, 1.16),
       }
     })
   }, [detail, radius, lotus])
-  const pads = useMemo(() => {
-    const rng = makeRng(hashSeed('vanaspatyam-pond'))
-    const count = detail === 'low' ? 70 : 150
-    return Array.from({ length: count }, () => {
-      const a = rng.range(0, Math.PI * 2)
-      const r = Math.sqrt(rng.range(0, 1)) * (radius - 0.25)
-      return {
-        x: Math.cos(a) * r,
-        z: Math.sin(a) * r,
-        s: rng.range(0.16, 0.32),
-        spin: rng.range(0, Math.PI * 2),
-        flower: rng.range(0, 1) < 0.16,
-      }
-    })
-  }, [detail, radius])
+  const surface = useMemo(() => pondSurface(radius, detail), [detail, radius])
+  useEffect(
+    () => () => {
+      surface.pads.dispose()
+      surface.petals.dispose()
+      surface.green.dispose()
+      surface.gold?.dispose()
+    },
+    [surface],
+  )
 
   return (
     <group position={[x, 0, z]}>
@@ -880,20 +991,20 @@ function Pond({
             }
           />
         ))}
-      {pads.map((p, i) => (
-        <group key={i} position={[p.x, 0.075, p.z]} rotation={[0, p.spin, 0]}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[p.s, 9, 0.35, Math.PI * 1.86]} />
-            <meshStandardMaterial color={dark ? '#1d3324' : '#3f6b3d'} roughness={0.6} side={THREE.DoubleSide} />
-          </mesh>
-          {p.flower && (
-            <mesh position={[0, 0.07, 0]} rotation={[0.2, 0, 0]}>
-              <coneGeometry args={[p.s * 0.42, 0.16, 7]} />
-              <meshStandardMaterial color={dark ? '#6d3550' : '#d3559a'} roughness={0.7} />
-            </mesh>
-          )}
-        </group>
-      ))}
+      <mesh geometry={surface.pads} receiveShadow>
+        <meshStandardMaterial color={dark ? '#22391f' : '#4a8150'} roughness={0.6} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={surface.petals} castShadow={shadows}>
+        <meshStandardMaterial color={dark ? '#8a4a68' : '#efabc8'} roughness={0.55} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={surface.green} castShadow={shadows}>
+        <meshStandardMaterial color={dark ? '#2f5238' : '#6d9a5c'} roughness={0.72} />
+      </mesh>
+      {surface.gold && (
+        <mesh geometry={surface.gold}>
+          <meshStandardMaterial color={dark ? '#8d7638' : '#f2d264'} roughness={0.5} />
+        </mesh>
+      )}
     </group>
   )
 }
@@ -1061,6 +1172,9 @@ const SPREAD: Record<Plant['model']['archetype'], number> = {
    * further than the plant stands tall, so it needs the widest allowance
    * here or it is planted at a size that hangs over the kerb. */
   rosette: 2.1,
+  /* Not planted in a bed at all — the lotus stands in the pond — but the
+   * table has to be total, and its pads reach about as far as a rosette's. */
+  aquatic: 1.9,
   herb: 0.8,
   grass: 0.7,
   shrub: 0.9,

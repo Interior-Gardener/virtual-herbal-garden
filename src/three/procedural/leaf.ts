@@ -30,6 +30,9 @@ export function leafProfile(shape: LeafShape, t: number): number {
       return Math.sin(Math.PI * Math.pow(clamped, 0.55))
     case 'reniform':
       return Math.pow(Math.sin(Math.PI * Math.pow(clamped, 0.45)), 0.75)
+    case 'peltate':
+      // A disc: widest across the middle and closing to a point at both ends.
+      return Math.sqrt(Math.max(0, 1 - Math.pow(2 * clamped - 1, 2)))
     case 'spatulate':
       return Math.sin(Math.PI * Math.pow(clamped, 1.8))
     case 'deltoid':
@@ -97,6 +100,10 @@ export function buildLeafGeometry(opts: LeafBuildOptions): THREE.BufferGeometry 
    * below eight rows, where the mesh has too few samples per crease to
    * show one and renders it as banding instead. */
   const quilt = rows >= 8 ? rugose : 0
+  /* A peltate blade is a parasol, not a flag. It is pinned at its middle, so
+   * everything that shapes it — the dish, the wave in the margin, the flutter,
+   * the veins — is measured out from that centre rather than up from a base. */
+  const dish = shape === 'peltate'
   /* Lateral veins leave the midrib at an angle, so the creases run
    * diagonally out toward the margin rather than straight across — the
    * skew is what stops the pucker reading as corrugated iron. */
@@ -153,9 +160,27 @@ export function buildLeafGeometry(opts: LeafBuildOptions): THREE.BufferGeometry 
               Math.pow(Math.sin(Math.abs(s) * Math.PI), 0.55)
             : 0
 
-        positions.push(x, y, zDroop + zCurl + zQuilt + sign * lens)
-        uvs.push((s + 1) * 0.5, t)
-        flex.push(t * t)
+        // Elliptical distance from the attachment point, 0 at the hub, 1 at the rim.
+        const radial = dish ? Math.min(1, Math.hypot(2 * t - 1, s)) : 0
+        const bearing = dish ? Math.atan2(s, 2 * t - 1) : 0
+        const zDish = dish
+          ? radial *
+              radial *
+              (curl * length * (0.36 + 0.05 * Math.sin(bearing * 5)) - droop * length)
+          : 0
+
+        positions.push(x, y, (dish ? zDish : zDroop + zCurl + zQuilt) + sign * lens)
+        if (dish) {
+          /* The venation shader draws a rib wherever u passes 0.5, so sweeping u
+           * through a sine of the bearing turns its one midrib into the ring of
+           * veins that radiate from a lotus pad's hub. Pulled off 0.5 as the hub
+           * is approached, where sixteen converging lines would only alias. */
+          uvs.push(0.5 + 0.15 * (Math.sin(bearing * 8) * radial + (1 - radial)), radial)
+          flex.push(radial * radial)
+        } else {
+          uvs.push((s + 1) * 0.5, t)
+          flex.push(t * t)
+        }
       }
     }
 
@@ -165,7 +190,12 @@ export function buildLeafGeometry(opts: LeafBuildOptions): THREE.BufferGeometry 
         const b = a + 1
         const d = a + cross
         const e = d + 1
-        if (sign > 0) indices.push(a, d, b, b, d, e)
+        /* A peltate blade is the one shape held flat and face-up, which is where
+         * it starts to matter which side of the sheet is the front. The default
+         * winding here puts it on -Z, so a pad laid out by `orientTo` turned its
+         * underside to the sky and came out the pale colour of a leaf's back. */
+        const front = dish ? sign < 0 : sign > 0
+        if (front) indices.push(a, d, b, b, d, e)
         else indices.push(a, b, d, b, e, d)
       }
     }
@@ -241,7 +271,10 @@ export function buildLeafUnit(
   /* A puckered blade is all surface: at the nine rows a smooth leaf is
    * happy with, each crease gets three samples and shows up as a stripe.
    * It only costs the one or two species that ask for it. */
-  const detailed = fine && (leaf.rugose ?? 0) > 0
+  /* A peltate blade wants the same treatment for a different reason: it is one
+   * big disc rather than a small pointed one, so the coarse grid that flatters
+   * a lanceolate leaf shows every facet round its rim. */
+  const detailed = fine && ((leaf.rugose ?? 0) > 0 || leaf.shape === 'peltate')
   const rows = fine
     ? detailed
       ? Math.round(quality.rows * 1.6)
@@ -263,7 +296,12 @@ export function buildLeafUnit(
       cols,
     })
 
-  if (compound === 'simple') return blade()
+  if (compound === 'simple') {
+    const simple = blade()
+    // The stalk of a peltate leaf meets the blade at its middle, not its edge.
+    if (leaf.shape === 'peltate') simple.translate(0, -leaf.length * 0.5, 0)
+    return simple
+  }
 
   const template = blade()
   const parts: THREE.BufferGeometry[] = []

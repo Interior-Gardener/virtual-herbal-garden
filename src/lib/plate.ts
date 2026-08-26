@@ -44,6 +44,9 @@ function bladePath(spec: PlantModelSpec, length: number, width: number): string 
   const shape = spec.leaf.shape
   const samples = 26
   const notch = shape === 'cordate' ? 0.17 : shape === 'reniform' ? 0.3 : 0
+  // A peltate blade hangs from its middle, so its outline is centred on the
+  // attachment point instead of rising out of it.
+  const hub = shape === 'peltate' ? length * 0.5 : 0
   const serration = spec.leaf.serration ?? 0
 
   const right: string[] = []
@@ -56,7 +59,7 @@ function bladePath(spec: PlantModelSpec, length: number, width: number): string 
       profile *= 1 - serration * 0.16 * (0.5 + 0.5 * Math.cos(t * 9 * Math.PI * 2))
     }
     const halfWidth = profile * width * 0.5
-    const y = -t * length + notch * length * Math.max(0, 1 - t / 0.28)
+    const y = -t * length + hub + notch * length * Math.max(0, 1 - t / 0.28)
     right.push(`${halfWidth.toFixed(2)},${y.toFixed(2)}`)
     left.push(`${(-halfWidth).toFixed(2)},${y.toFixed(2)}`)
   }
@@ -66,6 +69,14 @@ function bladePath(spec: PlantModelSpec, length: number, width: number): string 
 
 /** Midrib plus lateral veins for a close-up leaf study. */
 function veinPaths(spec: PlantModelSpec, length: number, width: number): string[] {
+  if (spec.leaf.shape === 'peltate') {
+    // No midrib to hang laterals off — a lotus pad's veins run out from the hub.
+    const ribs = 14
+    return Array.from({ length: ribs }, (_, i) => {
+      const a = (i / ribs) * Math.PI * 2
+      return `M 0,0 L ${(Math.cos(a) * width * 0.5).toFixed(2)},${(Math.sin(a) * length * 0.5).toFixed(2)}`
+    })
+  }
   const paths = [`M 0,0 L 0,${(-length).toFixed(2)}`]
   const pairs = 6
   for (let i = 1; i <= pairs; i++) {
@@ -195,6 +206,40 @@ function habitElements(plant: Plant): PlateElement[] {
       break
     }
 
+    case 'aquatic': {
+      /* A waterline with stalks through it: pads held at their own heights,
+       * and the flower standing over the top of the lot. */
+      const water = BASE_Y - 5
+      elements.push({ kind: 'stem', d: `M 6,${water} L ${VIEW_W - 6},${water}`, width: 1 })
+      const stalks = 5
+      for (let i = 0; i < stalks; i++) {
+        const dir = i % 2 === 0 ? 1 : -1
+        const x = VIEW_W / 2 + dir * (9 + (i / stalks) * 26)
+        const y = water - 26 - (i % 3) * 20 - rng.range(0, 7)
+        elements.push({ kind: 'stem', d: stemCurve(VIEW_W / 2 + dir * 3, BASE_Y, x, y, dir * 5, 1, 0).d, width: 1.5 })
+        leafAt({ x, y, angle: 0, scale: 1 }, 0, 0.95 - (i % 3) * 0.08)
+      }
+      if (spec.flower) {
+        const fx = VIEW_W / 2 + 12
+        const fy = 26
+        elements.push({ kind: 'stem', d: stemCurve(VIEW_W / 2 + 4, BASE_Y, fx, fy, 7, 1, 0).d, width: 1.4 })
+        for (let ring = 0; ring < 3; ring++) {
+          const petals = 8 - ring * 2
+          for (let k = 0; k < petals; k++) {
+            const a = (k / petals) * Math.PI * 2 + ring * 0.4
+            elements.push({
+              kind: 'flower',
+              cx: fx + Math.cos(a) * (13 - ring * 4),
+              cy: fy + Math.sin(a) * (8 - ring * 2.5),
+              r: 6 - ring * 1.3,
+            })
+          }
+        }
+        elements.push({ kind: 'core', cx: fx, cy: fy, r: 3.4 })
+      }
+      break
+    }
+
     case 'creeper': {
       for (let i = 0; i < 3; i++) {
         const dir = i === 1 ? 1 : -1
@@ -284,8 +329,10 @@ export function buildPlate(plant: Plant, variant: PlateVariant = 'habit'): Plate
   // A ground-hugging creeper's leaf is a huge fraction of its own height, which
   // is true but unreadable on a plate — so each habit gets a ceiling too.
   const ceiling =
-    spec.archetype === 'rosette' || spec.archetype === 'grass'
-      ? 40
+    spec.archetype === 'aquatic'
+      ? 26
+      : spec.archetype === 'rosette' || spec.archetype === 'grass'
+        ? 40
       : spec.archetype === 'creeper'
         ? 21
         : spec.archetype === 'tree'
@@ -343,9 +390,32 @@ function flowerElements(plant: Plant): PlateElement[] {
   }
 
   const form = spec.flower.form
-  elements.push({ kind: 'stem', d: `M ${cx},${BASE_Y} L ${cx},${form === 'umbel' ? 56 : 42}`, width: 2 })
+  const stemTop = form === 'umbel' ? 56 : form === 'lotus' ? 62 : 42
+  elements.push({ kind: 'stem', d: `M ${cx},${BASE_Y} L ${cx},${stemTop}`, width: 2 })
 
-  if (form === 'spike' || form === 'catkin') {
+  if (form === 'lotus') {
+    /* Whorls, not one ring — three of them stepping in toward a flat
+     * receptacle, which is the whole difference between this and a daisy. */
+    for (let ring = 0; ring < 3; ring++) {
+      const petals = 10 - ring * 2
+      const spread = 27 - ring * 8
+      for (let i = 0; i < petals; i++) {
+        const a = (i / petals) * Math.PI * 2 + ring * 0.35
+        elements.push({
+          kind: 'flower',
+          cx: cx + Math.cos(a) * spread,
+          cy: 62 + Math.sin(a) * spread * 0.6,
+          r: 11 - ring * 2.4,
+        })
+      }
+    }
+    elements.push({ kind: 'core', cx, cy: 62, r: 7.5 })
+    // The carpels sunk in the face of it.
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2
+      elements.push({ kind: 'core', cx: cx + Math.cos(a) * 3.8, cy: 62 + Math.sin(a) * 2.5, r: 1.2 })
+    }
+  } else if (form === 'spike' || form === 'catkin') {
     for (let i = 0; i < 9; i++) {
       const y = 44 + i * 8
       elements.push({ kind: 'flower', cx: cx + (i % 2 ? 7 : -7), cy: y, r: 5.4 - i * 0.18 })

@@ -63,7 +63,12 @@ function stamp(geo: THREE.BufferGeometry, phase: number, tint: number): THREE.Bu
     geo.setAttribute('aFlex', new THREE.Float32BufferAttribute(new Float32Array(count).fill(0.4), 1))
   }
   geo.setAttribute('aPhase', new THREE.Float32BufferAttribute(new Float32Array(count).fill(phase), 1))
-  geo.setAttribute('aTint', new THREE.Float32BufferAttribute(new Float32Array(count).fill(tint), 1))
+  /* A part that arrived already shaded keeps its own tone — the carpels sunk
+   * in a lotus receptacle are darker than the face they sit in, and that has
+   * to survive being placed. Everything else takes the caller's tint. */
+  if (!geo.attributes.aTint) {
+    geo.setAttribute('aTint', new THREE.Float32BufferAttribute(new Float32Array(count).fill(tint), 1))
+  }
   if (!geo.index) {
     // Merging requires every part to agree on indexed-ness.
     const idx = new Uint32Array(count)
@@ -100,6 +105,21 @@ function orientTo(dir: THREE.Vector3, faceUp = true): THREE.Quaternion {
   const face = new THREE.Vector3(0, 0, 1).applyQuaternion(q)
   const roll = signedAngle(face, skyward, d)
   return q.multiply(new THREE.Quaternion().setFromAxisAngle(Y_AXIS, roll))
+}
+
+/**
+ * Orientation for an organ set round a flower's axis at `azimuth`, leaning
+ * `pitch` radians off vertical, with its cupped face (local +Z) turned in
+ * toward that axis — how a petal or a stamen actually sits. `orientTo` rolls
+ * organs to face the sky instead, which is right for a leaf and wrong here:
+ * it left every petal in a whorl cupping a different way.
+ */
+function radialOrientation(azimuth: number, pitch: number): THREE.Quaternion {
+  const outward = new THREE.Vector3(Math.cos(azimuth), 0, Math.sin(azimuth))
+  const tip = outward.clone().multiplyScalar(Math.sin(pitch)).addScaledVector(UP, Math.cos(pitch)).normalize()
+  const face = UP.clone().multiplyScalar(Math.sin(pitch)).addScaledVector(outward, -Math.cos(pitch)).normalize()
+  const side = new THREE.Vector3().crossVectors(tip, face)
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, tip, face))
 }
 
 /** A tapered tube swept through a set of points — stems, branches, petioles. */
@@ -413,7 +433,8 @@ function attachBasalLeaves(
 
 function buildFloretTemplates(ctx: BuildContext) {
   const flower = ctx.spec.flower
-  if (!flower) return
+  // A lotus builds its own bloom per scape, at its own stage of opening.
+  if (!flower || flower.form === 'lotus') return
   const petals = Math.max(3, Math.round((flower.petals ?? 5) * (ctx.q.floret >= 0.7 ? 1 : 0.7)))
   const petalGeo = buildLeafGeometry({
     shape: 'obovate',
@@ -452,6 +473,180 @@ function placeFloret(ctx: BuildContext, at: THREE.Vector3, scale: number, phase:
   if (ctx.floretCore) place(ctx.cores, ctx.floretCore, m, phase, 0)
 }
 
+/* ------------------------------ lotus ------------------------------ */
+
+/** The three material channels a lotus bloom is drawn in. */
+export interface LotusBloomGeometry {
+  /** The petals themselves. */
+  petals: THREE.BufferGeometry
+  /** Receptacle and carpels — green, and drawn with the foliage. */
+  receptacle: THREE.BufferGeometry
+  /** The stamen collar — gold, and drawn with the flower centre. Absent on a bud. */
+  stamens: THREE.BufferGeometry | null
+}
+
+/**
+ * Nelumbo's bloom, which none of the generic inflorescences describes.
+ *
+ * The tells are all in the middle of it. Twenty-odd petals in offset whorls,
+ * the outer ones fallen back almost level while the inner ones still cup; a
+ * dense collar of stamens; and — the thing no other flower in the garden has
+ * — a bare flat-topped receptacle with its carpels sunk into the face, which
+ * goes on to become the seed head everyone recognises. Built as a `solitary`
+ * floret it came out a pink daisy with one bead in the middle.
+ *
+ * `openness` runs 0 (a tight bud, every petal drawn up around the receptacle)
+ * to 1 (fully out); a real tank carries every stage at once. `quality` thins
+ * the mesh for blooms that are only ever seen across the water.
+ */
+export function buildLotusBloom(opts: {
+  size: number
+  petals?: number
+  openness?: number
+  quality?: number
+}): LotusBloomGeometry {
+  const size = opts.size
+  const openness = THREE.MathUtils.clamp(opts.openness ?? 1, 0, 1)
+  const fidelity = THREE.MathUtils.clamp(opts.quality ?? 1, 0.25, 1)
+  const fine = fidelity > 0.7
+  const total = Math.max(9, Math.round((opts.petals ?? 22) * (0.55 + 0.45 * fidelity)))
+  const whorls = fine ? 3 : 2
+  const rows = fine ? 6 : 3
+  const cols = fine ? 3 : 1
+  const radial = fine ? 12 : 7
+
+  /* ---- petals ---- */
+  const petalParts: THREE.BufferGeometry[] = []
+  for (let w = 0; w < whorls; w++) {
+    // 0 at the outermost whorl, 1 at the innermost.
+    const inward = w / (whorls - 1)
+    const scale = THREE.MathUtils.lerp(1, 0.58, inward)
+    const count = Math.max(4, Math.round((total / whorls) * THREE.MathUtils.lerp(1.18, 0.8, inward)))
+    // Obovate: broadest above the middle and drawn to a point, which is the
+    // lotus petal exactly. `curl` gives it its keel, `droop` recurves the tip.
+    const blade = buildLeafGeometry({
+      shape: 'obovate',
+      length: size * scale,
+      // Broad and overlapping. Narrower than this and the whorls stop touching,
+      // which turns the bloom into a star rather than a cup.
+      width: size * scale * 0.72,
+      droop: THREE.MathUtils.lerp(0.3, 0.08, inward),
+      curl: THREE.MathUtils.lerp(0.46, 0.86, inward),
+      rows,
+      cols,
+    })
+    /* Open, the outer whorl lies back almost level and every ring inside it
+     * stands straighter; shut, they all draw up into the tulip of a lotus bud. */
+    const pitch = THREE.MathUtils.lerp(
+      THREE.MathUtils.degToRad(THREE.MathUtils.lerp(16, 6, inward)),
+      THREE.MathUtils.degToRad(THREE.MathUtils.lerp(60, 22, inward)),
+      openness,
+    )
+    const lift = size * THREE.MathUtils.lerp(0.06, 0.18, inward)
+    for (let i = 0; i < count; i++) {
+      // Half a step of offset per whorl, so each ring sits in the gaps of the last.
+      const a = ((i + w * 0.5) / count) * Math.PI * 2
+      const g = blade.clone()
+      g.applyMatrix4(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(0, lift, 0),
+          radialOrientation(a, pitch),
+          new THREE.Vector3(1, 1, 1),
+        ),
+      )
+      petalParts.push(g)
+    }
+    blade.dispose()
+  }
+
+  /* ---- receptacle ---- */
+  /* Obconic: a cone stood on its point, widening to the flat face that carries
+   * the carpels. Still small and tucked away in a bud, filling out as it opens. */
+  const grown = 0.44 + 0.56 * openness
+  const rTop = size * 0.24 * grown
+  const rBot = size * 0.12 * grown
+  const deep = size * 0.24 * grown
+  /* Set well up on the pedicel, so the innermost whorl closes round it and the
+   * flower is a cup with something inside rather than a ring of petals with a
+   * green plug hanging below them. */
+  const seat = size * 0.1
+  const face = seat + deep
+
+  /* Tint is set here rather than at placement because the two parts want
+   * different tones, and `stamp` can only give a whole geometry one. */
+  const shade = (geo: THREE.BufferGeometry, tone: number) => {
+    const n = geo.attributes.position.count
+    geo.setAttribute('aTint', new THREE.Float32BufferAttribute(new Float32Array(n).fill(tone), 1))
+    return geo
+  }
+
+  const body = new THREE.CylinderGeometry(rTop, rBot, deep, radial, 1)
+  body.translate(0, seat + deep * 0.5, 0)
+  const receptacleParts: THREE.BufferGeometry[] = [shade(body, 1)]
+
+  /* The carpels, on the phyllotactic spiral they actually grow in, each sunk
+   * into the face so only its tip stands proud — the stipple that makes the
+   * seed head read as a seed head rather than a plug. */
+  const pips = Math.max(5, Math.round(17 * fidelity))
+  const carpelR = rTop * 0.16
+  const pip = new THREE.CylinderGeometry(carpelR, carpelR * 1.2, carpelR * 1.6, fine ? 6 : 4, 1)
+  for (let i = 0; i < pips; i++) {
+    const a = i * GOLDEN_ANGLE
+    const reach = Math.sqrt((i + 0.5) / pips) * rTop * 0.66
+    const g = pip.clone()
+    g.translate(Math.cos(a) * reach, face - carpelR * 0.5, Math.sin(a) * reach)
+    // Darker than the face they sit in.
+    receptacleParts.push(shade(g, -1))
+  }
+  pip.dispose()
+
+  const receptacle = mergeGeometries(receptacleParts, false)
+  receptacleParts.forEach((r) => r.dispose())
+  /* The receptacle shares the leaf material to get its green, but it is not a
+   * leaf: parking every vertex off the shader's midrib keeps venation off it. */
+  const uv = receptacle.attributes.uv
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.02, 0.5)
+
+  /* ---- stamens ---- */
+  /* A closed bud keeps them hidden, so it does not pay for them. */
+  let stamens: THREE.BufferGeometry | null = null
+  if (openness > 0.3) {
+    // Open-ended: the ends are buried in the ruff and in the anther above.
+    const filament = new THREE.CylinderGeometry(size * 0.006, size * 0.009, size * 0.13, 3, 1, true)
+    filament.translate(0, size * 0.065, 0)
+    const anther = new THREE.CylinderGeometry(size * 0.004, size * 0.014, size * 0.09, fine ? 5 : 3, 1)
+    anther.translate(0, size * 0.175, 0)
+    const unit = mergeGeometries([filament, anther], false)
+    filament.dispose()
+    anther.dispose()
+
+    const count = Math.max(9, Math.round(32 * fidelity))
+    const ruff: THREE.BufferGeometry[] = []
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2
+      // Two loose ranks, leaning out to clear the face of the receptacle.
+      const rank = i % 2
+      const lean = THREE.MathUtils.degToRad(16 + rank * 12) * (0.4 + 0.6 * openness)
+      const g = unit.clone()
+      g.applyMatrix4(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(Math.cos(a) * rBot * (1 + rank * 0.35), seat + deep * 0.16, Math.sin(a) * rBot * (1 + rank * 0.35)),
+          radialOrientation(a, lean),
+          new THREE.Vector3(1, 1, 1),
+        ),
+      )
+      ruff.push(g)
+    }
+    unit.dispose()
+    stamens = mergeGeometries(ruff, false)
+    ruff.forEach((r) => r.dispose())
+  }
+
+  const petals = mergeGeometries(petalParts, false)
+  petalParts.forEach((r) => r.dispose())
+  return { petals, receptacle, stamens }
+}
+
 function attachFlowers(ctx: BuildContext) {
   const flower = ctx.spec.flower
   if (!flower || !ctx.tips.length) return
@@ -459,7 +654,13 @@ function attachFlowers(ctx: BuildContext) {
   const clusters = Math.max(1, Math.round(flower.count * q.density))
 
   for (let c = 0; c < clusters; c++) {
-    const tip = ctx.tips[Math.floor(rng.next() * ctx.tips.length) % ctx.tips.length]
+    /* A lotus is one bloom on one scape and the aquatic habit raises a scape
+     * per bloom, so they are taken in turn — picking at random stacked two
+     * flowers on one stalk and left another bare. */
+    const tip =
+      flower.form === 'lotus'
+        ? ctx.tips[c % ctx.tips.length]
+        : ctx.tips[Math.floor(rng.next() * ctx.tips.length) % ctx.tips.length]
     const base = tip.point.clone()
     const dir = tip.dir.clone().normalize()
 
@@ -579,6 +780,32 @@ function attachFlowers(ctx: BuildContext) {
         }
         break
       }
+      case 'lotus': {
+        /* Every stage at once, which is what a tank looks like: one scape
+         * fully out and the rest caught somewhere short of it. */
+        const target = flower.openness ?? 1
+        const openness = c === 0 ? target : THREE.MathUtils.clamp(target * rng.range(0.1, 1.2), 0, 1)
+        const bloom = buildLotusBloom({
+          size: flower.size,
+          petals: flower.petals,
+          openness,
+          quality: q.floret,
+        })
+        // A lotus holds its flower level whatever the scape is doing.
+        const m = new THREE.Matrix4().compose(
+          base.clone().addScaledVector(dir, flower.size * 0.2),
+          new THREE.Quaternion().setFromAxisAngle(Y_AXIS, rng.range(0, Math.PI * 2)),
+          new THREE.Vector3(1, 1, 1),
+        )
+        place(ctx.petals, bloom.petals, m, tip.phase, rng.jitter(0.8))
+        place(ctx.foliage, bloom.receptacle, m, tip.phase, 1)
+        if (bloom.stamens) place(ctx.cores, bloom.stamens, m, tip.phase, 0.5)
+        bloom.petals.dispose()
+        bloom.receptacle.dispose()
+        bloom.stamens?.dispose()
+        ctx.radius = Math.max(ctx.radius, flower.size * 1.15)
+        break
+      }
       default: {
         placeFloret(ctx, base.clone().addScaledVector(dir, flower.size * 0.8), 1, tip.phase)
       }
@@ -676,6 +903,73 @@ function growByArchetype(ctx: BuildContext) {
         )
         ctx.stems.push(stamp(stalk, 1.2, 0))
         ctx.tips.push({ point: stalkTop, dir: new THREE.Vector3(0, 1, 0), phase: 1.2 })
+      }
+      break
+    }
+
+    case 'aquatic': {
+      /* Nelumbo's habit, and the whole reason it is not a rosette: a rhizome
+       * buried in the mud sends up unbranched stalks one at a time, each
+       * carrying a single peltate blade held clear of the water, with the
+       * flower scapes standing higher again. Sitting the leaves flat on the
+       * crown made it a water lily, which is the one plant a lotus is always
+       * being told apart from. */
+      const leaf = spec.leaf
+      const pads = Math.max(3, Math.round((leaf.density ?? 6) * q.density))
+      // The youngest blades have not made the surface yet and still float.
+      const floaters = Math.max(1, Math.round(pads * 0.3))
+
+      const stalk = (foot: THREE.Vector3, top: THREE.Vector3, thick: number, phase: number) => {
+        // A lotus stalk leaves the mud upright and only leans out near the top.
+        const knee = foot.clone().lerp(top, 0.6)
+        knee.x = foot.x + (top.x - foot.x) * 0.25
+        knee.z = foot.z + (top.z - foot.z) * 0.25
+        const tube = buildTube([foot, knee, top], spec.stem.radius * thick, spec.stem.radius * thick * 0.72, q.radial, q.steps)
+        ctx.stems.push(stamp(tube, phase, 0))
+      }
+
+      for (let i = 0; i < pads; i++) {
+        const a = i * GOLDEN_ANGLE + rng.jitter(0.35)
+        const floating = i < floaters
+        const reach = spec.height * (floating ? rng.range(0.16, 0.36) : rng.range(0.08, 0.3))
+        const lift = floating ? spec.height * rng.range(0.015, 0.05) : spec.height * rng.range(0.42, 1)
+        // They come off a rhizome spread through the mud, so they break the
+        // surface well apart rather than in one bundle.
+        const foot = new THREE.Vector3(Math.cos(a) * reach * 0.5, -0.03, Math.sin(a) * reach * 0.5)
+        const top = new THREE.Vector3(Math.cos(a) * reach, lift, Math.sin(a) * reach)
+        stalk(foot, top, 0.95, i * 0.7)
+
+        if (ctx.budget-- > 0) {
+          /* A raised pad is a parasol tipped a few degrees off level; a
+           * floating one lies right down on the water. */
+          const tilt = floating ? rng.range(0.02, 0.07) : rng.range(0.09, 0.28)
+          const az = rng.range(0, Math.PI * 2)
+          const dir = new THREE.Vector3(Math.cos(az), tilt, Math.sin(az)).normalize()
+          const scale = (floating ? rng.range(0.6, 0.82) : rng.range(0.86, 1.16)) * ctx.leafScale
+          const m = new THREE.Matrix4().compose(top, orientTo(dir), new THREE.Vector3(scale, scale, scale))
+          place(ctx.foliage, ctx.leafTemplate, m, i * 0.7, rng.jitter(1))
+          ctx.radius = Math.max(ctx.radius, reach + leaf.width * 0.5 * scale)
+        }
+      }
+
+      if (spec.flower) {
+        // One scape per bloom — `attachFlowers` takes them in order.
+        const scapes = Math.max(1, Math.round(spec.flower.count * q.density))
+        for (let i = 0; i < scapes; i++) {
+          const a = i * GOLDEN_ANGLE + Math.PI * 0.4 + rng.jitter(0.4)
+          const reach = spec.height * rng.range(0.1, 0.28)
+          // The flower stands above the leaves. That is how a lotus reads at a
+          // distance, and it is the thing a water lily never does.
+          const lift = spec.height * rng.range(1.02, 1.3)
+          const foot = new THREE.Vector3(Math.cos(a) * reach * 0.5, -0.03, Math.sin(a) * reach * 0.5)
+          const top = new THREE.Vector3(Math.cos(a) * reach, lift, Math.sin(a) * reach)
+          stalk(foot, top, 0.8, 2.4 + i)
+          ctx.tips.push({
+            point: top,
+            dir: new THREE.Vector3(rng.jitter(0.1), 1, rng.jitter(0.1)).normalize(),
+            phase: 2.4 + i,
+          })
+        }
       }
       break
     }
