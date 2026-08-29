@@ -143,7 +143,9 @@ export const REGION_POINTS: Record<string, RegionPoint> = {
   // hills — nudged so each circle clears the coastline at its full size.
   Himalayan: { lon: 77.4, lat: 31.6, label: 'Himalayan', side: 'above' },
   'Indo-Gangetic Plains': { lon: 81.2, lat: 26.2, label: 'Indo-Gangetic', side: 'right' },
-  'Arid & Desert': { lon: 71.6, lat: 26.6, label: 'Arid & Desert', side: 'left' },
+  // Hung above rather than left: the Thar marker sits at x=58 in a 420-wide
+  // viewBox, and 'Arid & Desert' is too long a caption to fit west of it.
+  'Arid & Desert': { lon: 71.6, lat: 26.6, label: 'Arid & Desert', side: 'above' },
   'North-East India': { lon: 93.4, lat: 26.2, label: 'North-East', side: 'above' },
   'Pan-India': { lon: 79.0, lat: 22.5, label: 'Pan-India', side: 'right' },
   Coastal: { lon: 83.5, lat: 19.7, label: 'Coastal', side: 'right' },

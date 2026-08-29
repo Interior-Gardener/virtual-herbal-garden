@@ -4,28 +4,38 @@ import { motion } from "motion/react";
 import { plants, gardenBeds } from "../data/plants";
 import { BED_PLOTS, PLAQUE } from "../data/vanaspatyam";
 import { BotanicalPlate } from "../components/BotanicalPlate";
-import { Icon } from "../components/ui/Icon";
+import { Icon, type IconName } from "../components/ui/Icon";
 import { useCalmMotion } from "../components/motion/Reveal";
 import type { Plant } from "../types/plant";
 
 /* ------------------------------------------------------------------ *
  * The doorway.
  *
- * There are two gardens now: the designed one, laid out by theme so the
- * medicine is what organises the ground, and Vanaspatyam, which is a
- * real place on a real campus and laid out the way it actually is. They
- * hold the same plants. Choosing between them is choosing
- * how you want to meet them, so the choice is made here rather than
- * buried in a menu.
+ * There are two gardens, and they are not the same kind of object.
+ * Vanaspati we drew: the medicine organises the ground, and it exists
+ * here and nowhere else. Vanaspatyam is a real garden in Sion with an
+ * address, a dispensary attached and ten thousand plants in it, and
+ * what you walk here is our reconstruction of one plot of it.
+ *
+ * A visitor arriving cold cannot guess that difference, and getting it
+ * wrong in either direction is bad — either the designed garden reads
+ * as a claim about a real site, or the real one reads as invented. So
+ * each card says which kind it is on its face, and the real one carries
+ * enough of the actual place to stand on its own.
  * ------------------------------------------------------------------ */
 
 interface Door {
   to: string;
+  /** The badge over the plate — which *kind* of garden this is. */
+  kind: string;
+  kindIcon: IconName;
   eyebrow: string;
   title: string;
   sub?: string;
   body: string;
   facts: string[];
+  /** Only the real garden carries one: what our version is and is not. */
+  note?: string;
   accent: string;
   plants: Plant[];
 }
@@ -41,12 +51,14 @@ export default function Gateway() {
     return [
       {
         to: "/garden",
-        eyebrow: "The designed garden",
+        kind: "Learning garden",
+        kindIcon: "layers",
+        eyebrow: "Designed for learning",
         title: "Vanaspati",
-        body: "Twenty-five medicinal plants set out in themed beds — digestion, immunity, the mind — so that walking the garden walks you through what the medicine is for.",
+        body: "A garden we laid out ourselves, arranged by what the plants treat — digestion, immunity, the mind — so that walking it walks you through the medicine. It exists here and nowhere else.",
         facts: [
-          `${plants.length} species`,
-          `${gardenBeds.length} themed beds`,
+          `${plants.length} species in ${gardenBeds.length} themed beds`,
+          "Beds arranged by ailment, not by any map",
           "Guided tours and a narrated opening",
         ],
         accent: "#5c8a4a",
@@ -54,15 +66,19 @@ export default function Gateway() {
       },
       {
         to: "/vanaspatyam",
-        eyebrow: "The real garden",
+        kind: "A real place",
+        kindIcon: "map",
+        eyebrow: "Recreated, not invented",
         title: PLAQUE.title,
         sub: PLAQUE.devanagari,
-        body: "Our own Ayurvedic garden on campus, rebuilt from its plan and from photographs taken on the ground: the south gate, the spine between four ranks of kerbed beds, the lily pond, and the pylons standing over all of it.",
+        body: "A working Ayurvedic garden at the Somaiya Ayurvihar complex in Sion, Mumbai: three acres and ten thousand plants, grown so the Panchakarma centre beside it can prepare fresh medicine straight from the beds. We rebuilt one plot of it from its plan and from photographs taken standing in it — the south gate, the spine, the kerbed beds, the lily pond, and the pylons overhead that everyone recognises first.",
         facts: [
-          "Opened 12 February 2016",
-          `${BED_PLOTS.length} beds, 30m × 25m`,
-          "Walkable, gate to pond",
+          "Somaiya Ayurvihar · Sion, Mumbai",
+          "3 acres, 10,000+ plants, its own dispensary",
+          "Named in Sanskrit, as the classical texts name them",
+          `${BED_PLOTS.length} beds rebuilt — walkable, gate to pond`,
         ],
+        note: "An independent student reconstruction, made for study. Not affiliated with or endorsed by the Somaiya Trust, and not survey data.",
         accent: "#8a6a2f",
         plants: sample(["neem", "bael", "arjuna"]),
       },
@@ -102,9 +118,10 @@ export default function Gateway() {
             Two gardens, the same plants.
           </h1>
           <p className="mt-3 text-[0.98rem] leading-relaxed text-ink-soft text-balance-pretty">
-            One is arranged by what the plants treat. The other is a real garden
-            on our campus, rebuilt as it stands. Pick the door you want to come
-            in by — you can cross between them whenever you like.
+            One we designed, arranged by what the plants treat. The other is a
+            real garden in Mumbai, recreated here as it stands on the ground.
+            Pick the door you want to come in by — you can cross between them
+            whenever you like.
           </p>
         </motion.header>
 
@@ -138,6 +155,21 @@ export default function Gateway() {
                       style={{ transitionDelay: `${n * 40}ms` }}
                     />
                   ))}
+
+                  {/* Which kind of garden this is, said before anything else
+                      is read — it is the one thing you cannot infer from the
+                      plates, since both doors hold the same plants. */}
+                  <span
+                    className="absolute top-4 left-5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.66rem] font-semibold tracking-[0.11em] uppercase backdrop-blur-sm"
+                    style={{
+                      color: door.accent,
+                      borderColor: `color-mix(in srgb, ${door.accent} 38%, transparent)`,
+                      background: `color-mix(in srgb, ${door.accent} 13%, var(--surface-raised))`,
+                    }}
+                  >
+                    <Icon name={door.kindIcon} size={12} />
+                    {door.kind}
+                  </span>
                 </div>
 
                 <div className="flex flex-1 flex-col p-5">
@@ -163,10 +195,10 @@ export default function Gateway() {
                     {door.facts.map((fact) => (
                       <li
                         key={fact}
-                        className="flex items-center gap-2 text-[0.8rem] text-ink-faint"
+                        className="flex items-start gap-2 text-[0.8rem] text-ink-faint"
                       >
                         <span
-                          className="size-1.5 rounded-full"
+                          className="mt-[0.42rem] size-1.5 shrink-0 rounded-full"
                           style={{ background: door.accent }}
                         />
                         {fact}
@@ -174,13 +206,23 @@ export default function Gateway() {
                     ))}
                   </ul>
 
-                  <span
-                    className="mt-5 inline-flex items-center gap-1.5 text-[0.85rem] font-semibold transition-transform duration-300 group-hover:translate-x-0.5"
-                    style={{ color: door.accent }}
-                  >
-                    Enter
-                    <Icon name="arrowRight" size={15} />
-                  </span>
+                  {/* Pushed to the foot of the card so the two doors line
+                      their Enter up with each other despite unequal prose. */}
+                  <div className="mt-auto">
+                    {door.note && (
+                      <p className="mt-5 border-t border-line pt-3 text-[0.73rem] leading-relaxed text-ink-faint text-balance-pretty">
+                        {door.note}
+                      </p>
+                    )}
+
+                    <span
+                      className="mt-5 inline-flex items-center gap-1.5 text-[0.85rem] font-semibold transition-transform duration-300 group-hover:translate-x-0.5"
+                      style={{ color: door.accent }}
+                    >
+                      Enter
+                      <Icon name="arrowRight" size={15} />
+                    </span>
+                  </div>
                 </div>
               </Link>
             </motion.div>

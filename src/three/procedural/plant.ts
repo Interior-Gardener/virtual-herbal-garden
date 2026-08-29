@@ -1177,6 +1177,20 @@ export function buildPlantGeometry(
   return set
 }
 
+/**
+ * How high the plant actually reaches, in its own units.
+ *
+ * Not `spec.height`, which is the nominal size the generator is *aiming*
+ * at and which the finished geometry misses in both directions: a tree's
+ * crown closes around half way up its nominal height once branching and
+ * taper have had their say (babul asks for 3.4 and tops out at 1.8),
+ * while a lotus, an aloe or a creeping mandukaparni overshoots it. Reads
+ * straight off the cached build, so callers pay nothing for asking.
+ */
+export function plantTopY(id: string, spec: PlantModelSpec, detail: Detail = 'high'): number {
+  return buildPlantGeometry(id, spec, detail).bounds.max.y
+}
+
 /** Frees every cached build — used when the whole 3D layer unmounts. */
 export function disposePlantCache() {
   for (const set of cache.values()) {

@@ -36,6 +36,9 @@ export function getPlant(id: string | undefined): Plant | undefined {
  *  plinth both read this, so they can never drift apart. */
 export const BED_RADIUS = 2.1
 
+/** How far the plaza fountain's stonework reaches, for walk collision. */
+export const FOUNTAIN_RADIUS = 1.26
+
 export interface GardenBed {
   id: string
   name: string

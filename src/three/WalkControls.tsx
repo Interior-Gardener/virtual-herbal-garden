@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PointerLockControls } from '@react-three/drei'
 import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdlib'
-import { BED_RADIUS, gardenBeds } from '../data/plants'
+import { BED_RADIUS, FOUNTAIN_RADIUS, gardenBeds } from '../data/plants'
 import { GARDEN_EXTENT } from './gardenTexture'
 import { useGarden } from '../store/useGarden'
 import type { Plant } from '../types/plant'
@@ -44,9 +44,9 @@ export type Bounds =
 /** The main garden's own furniture, used when a scene names nothing else. */
 const DEFAULT_OBSTACLES: Obstacle[] = [
   ...gardenBeds.map((bed) => ({ x: bed.position[0], z: bed.position[1], r: BED_RADIUS })),
-  // The basin at the centre of the plaza. The kerb ringing the plaza itself
-  // is only 6cm proud, so that one is walked over rather than around.
-  { x: 0, z: 0, r: 1.12 },
+  // The fountain at the centre of the plaza. The kerb ringing the plaza
+  // itself is only 6cm proud, so that one is walked over rather than around.
+  { x: 0, z: 0, r: FOUNTAIN_RADIUS },
 ]
 
 /** Stop short of the edge, where the ground texture fades out into haze. */

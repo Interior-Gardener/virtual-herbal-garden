@@ -11,7 +11,7 @@ import { plantById } from '../data/plants'
 import { tickWind, windUniforms } from './materials'
 import { daylightAt } from './daylight'
 import { useDetail, dprFor } from '../hooks/useDetail'
-import { buildLotusBloom, type Detail } from './procedural/plant'
+import { buildLotusBloom, plantTopY, type Detail } from './procedural/plant'
 import { buildLeafGeometry } from './procedural/leaf'
 import { useGarden } from '../store/useGarden'
 import { makeRng, hashSeed } from './procedural/rng'
@@ -1426,8 +1426,13 @@ function SceneContents({
                     }
               }
             />
+            {/* The plant's real crown, not its nominal height. See plantTopY. */}
             {(hoveredId === plant.id || selectedId === plant.id) && (
-              <Html position={[0, plant.model.height * scale + 0.3, 0]} center zIndexRange={[15, 0]}>
+              <Html
+                position={[0, plantTopY(plant.id, plant.model, detail) * scale + 0.3, 0]}
+                center
+                zIndexRange={[15, 0]}
+              >
                 <span
                   className="pointer-events-none -translate-y-2 rounded-full px-2.5 py-1 text-[12px] font-medium whitespace-nowrap text-white shadow-lg"
                   style={{ background: plant.accent }}

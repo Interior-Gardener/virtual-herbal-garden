@@ -10,7 +10,7 @@ import { tickWind } from './materials'
 import { GARDEN_EXTENT, gardenFloorTexture } from './gardenTexture'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { buildLeafGeometry } from './procedural/leaf'
-import type { Detail } from './procedural/plant'
+import { plantTopY, type Detail } from './procedural/plant'
 import { hashSeed, makeRng } from './procedural/rng'
 import { useDetail, dprFor } from '../hooks/useDetail'
 import { useGarden } from '../store/useGarden'
@@ -339,28 +339,211 @@ function BedPlinths({ dark }: { dark: boolean }) {
   )
 }
 
-/** The plaza at the crossing of the paths, with a small water basin. */
-function Plaza({ dark }: { dark: boolean }) {
+/* ------------------------------------------------------------------ *
+ * The fountain at the centre of the plaza.
+ *
+ * Turned rather than stacked: the basin and the upper dish are each one
+ * profile revolved about the axis, the way a real one is cut on a lathe,
+ * so the lip and the inner slope belong to the same surface instead of
+ * being cylinders balanced on each other. Eight jets arc from the finial
+ * into the basin, droplets run along them, and rings spread where they
+ * land. Water is the only thing here that moves, so all of it stops when
+ * the visitor has asked for calm.
+ * ------------------------------------------------------------------ */
+
+/** Basin profile, [radius, height], swept about Y. */
+const BASIN_PROFILE: [number, number][] = [
+  [0, 0.06],
+  [0.98, 0.06],
+  [1.02, 0.11],
+  [1.06, 0.4],
+  [1.2, 0.45],
+  [1.24, 0.4],
+  [1.22, 0.1],
+  [1.18, 0.06],
+]
+
+/** The upper dish the jets fall past, same treatment. */
+const DISH_PROFILE: [number, number][] = [
+  [0, 0.92],
+  [0.34, 0.95],
+  [0.42, 1.0],
+  [0.47, 1.07],
+  [0.43, 1.02],
+  [0.35, 0.96],
+  [0, 0.93],
+]
+
+const JET_COUNT = 8
+const JET_REACH = 0.78
+const DROPLETS = 72
+const RIPPLES = 3
+/** Where the basin water sits — the jets have to land on it. */
+const BASIN_WATER_Y = 0.37
+
+/** One jet: up out of the finial, over, and down into the basin. */
+function jetCurve(i: number): THREE.QuadraticBezierCurve3 {
+  const a = (Math.PI * 2 * i) / JET_COUNT
+  const cx = Math.cos(a)
+  const cz = Math.sin(a)
+  return new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(0, 1.29, 0),
+    new THREE.Vector3(cx * JET_REACH * 0.5, 1.63, cz * JET_REACH * 0.5),
+    new THREE.Vector3(cx * JET_REACH, BASIN_WATER_Y + 0.01, cz * JET_REACH),
+  )
+}
+
+function Fountain({ dark, calm }: { dark: boolean; calm: boolean }) {
+  const stone = dark ? '#616754' : '#b6ad92'
+  const stoneDeep = dark ? '#555b49' : '#a89f83'
+  const water = dark ? '#2d6070' : '#68a8bd'
+
+  const basinPoints = useMemo(() => BASIN_PROFILE.map(([x, y]) => new THREE.Vector2(x, y)), [])
+  const dishPoints = useMemo(() => DISH_PROFILE.map(([x, y]) => new THREE.Vector2(x, y)), [])
+  const curves = useMemo(() => Array.from({ length: JET_COUNT }, (_, i) => jetCurve(i)), [])
+
+  /* Droplets are carried by the jets rather than falling on their own:
+   * each one holds a jet and a position along it, and simply advances. */
+  const drops = useMemo(() => {
+    const rng = makeRng(hashSeed('fountain-drops'))
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DROPLETS * 3), 3))
+    return {
+      geo,
+      jet: Array.from({ length: DROPLETS }, (_, i) => i % JET_COUNT),
+      t: Array.from({ length: DROPLETS }, () => rng.range(0, 1)),
+      speed: Array.from({ length: DROPLETS }, () => rng.range(0.42, 0.62)),
+    }
+  }, [])
+
+  useEffect(() => () => drops.geo.dispose(), [drops])
+
+  const ripples = useRef<(THREE.Mesh | null)[]>([])
+  const scratch = useMemo(() => new THREE.Vector3(), [])
+
+  useFrame((_, delta) => {
+    if (calm) return
+
+    const pos = drops.geo.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < DROPLETS; i++) {
+      drops.t[i] = (drops.t[i] + delta * drops.speed[i]) % 1
+      curves[drops.jet[i]].getPoint(drops.t[i], scratch)
+      pos.setXYZ(i, scratch.x, scratch.y, scratch.z)
+    }
+    pos.needsUpdate = true
+
+    for (let i = 0; i < RIPPLES; i++) {
+      const ring = ripples.current[i]
+      if (!ring) continue
+      const material = ring.material as THREE.MeshBasicMaterial
+      // Each ring is the same ring, a third of a cycle apart.
+      const phase = ((ring.userData.phase as number) + delta * 0.42) % 1
+      ring.userData.phase = phase
+      ring.scale.setScalar(0.35 + phase * 2.4)
+      material.opacity = 0.3 * (1 - phase)
+    }
+  })
+
+  return (
+    <group>
+      {/* Basin and dish are lathes, whose normals point inward over part of
+          the sweep; opaque stone reads correctly either way once both
+          sides are drawn. */}
+      <mesh castShadow receiveShadow>
+        <latheGeometry args={[basinPoints, 48]} />
+        <meshStandardMaterial color={stone} roughness={0.82} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* The pool the jets land in. A CircleGeometry is born in the XY
+          plane facing +Z, so it has to be laid down flat. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, BASIN_WATER_Y, 0]}>
+        <circleGeometry args={[1.02, 40]} />
+        <meshStandardMaterial
+          color={water}
+          roughness={0.06}
+          metalness={0.3}
+          transparent
+          opacity={0.92}
+        />
+      </mesh>
+
+      {/* Rings spreading from where the jets strike. */}
+      {!calm &&
+        Array.from({ length: RIPPLES }, (_, i) => (
+          <mesh
+            key={i}
+            ref={(node) => {
+              ripples.current[i] = node
+              if (node) node.userData.phase = i / RIPPLES
+            }}
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, BASIN_WATER_Y + 0.004, 0]}
+          >
+            <ringGeometry args={[0.3, 0.335, 40]} />
+            <meshBasicMaterial color={water} transparent opacity={0.22} depthWrite={false} />
+          </mesh>
+        ))}
+
+      {/* Pedestal, collar, dish, finial. */}
+      <mesh position={[0, 0.64, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.11, 0.17, 0.58, 20, 1]} />
+        <meshStandardMaterial color={stoneDeep} roughness={0.85} />
+      </mesh>
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <torusGeometry args={[0.13, 0.032, 8, 24]} />
+        <meshStandardMaterial color={stone} roughness={0.8} />
+      </mesh>
+      <mesh castShadow receiveShadow>
+        <latheGeometry args={[dishPoints, 40]} />
+        <meshStandardMaterial color={stone} roughness={0.82} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.015, 0]}>
+        <circleGeometry args={[0.4, 28]} />
+        <meshStandardMaterial color={water} roughness={0.06} metalness={0.3} transparent opacity={0.9} />
+      </mesh>
+      <mesh position={[0, 1.15, 0]} castShadow>
+        <cylinderGeometry args={[0.035, 0.055, 0.2, 12, 1]} />
+        <meshStandardMaterial color={stoneDeep} roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 1.28, 0]} castShadow>
+        <sphereGeometry args={[0.068, 16, 12]} />
+        <meshStandardMaterial color={stone} roughness={0.7} />
+      </mesh>
+
+      {/* The jets themselves — thin, and lit rather than shaded, so they
+          stay legible against the stone at every hour. */}
+      {curves.map((curve, i) => (
+        <mesh key={i}>
+          <tubeGeometry args={[curve, 22, 0.017, 6, false]} />
+          <meshBasicMaterial color={water} transparent opacity={0.42} depthWrite={false} />
+        </mesh>
+      ))}
+
+      {!calm && (
+        <points geometry={drops.geo}>
+          <pointsMaterial
+            color={water}
+            size={0.035}
+            sizeAttenuation
+            transparent
+            opacity={0.75}
+            depthWrite={false}
+          />
+        </points>
+      )}
+    </group>
+  )
+}
+
+/** The plaza at the crossing of the paths, with the fountain at its centre. */
+function Plaza({ dark, calm }: { dark: boolean; calm: boolean }) {
   return (
     <group>
       <mesh position={[0, 0.03, 0]} receiveShadow>
         <cylinderGeometry args={[3.1, 3.15, 0.06, 48, 1]} />
         <meshStandardMaterial color={dark ? '#565b4b' : '#c8c0a6'} roughness={0.85} />
       </mesh>
-      <mesh position={[0, 0.14, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.95, 1.08, 0.22, 32, 1]} />
-        <meshStandardMaterial color={dark ? '#616754' : '#b6ad92'} roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 0.255, 0]}>
-        <circleGeometry args={[0.86, 32]} />
-        <meshStandardMaterial
-          color={dark ? '#2d6070' : '#68a8bd'}
-          roughness={0.05}
-          metalness={0.25}
-          transparent
-          opacity={0.92}
-        />
-      </mesh>
+      <Fountain dark={dark} calm={calm} />
     </group>
   )
 }
@@ -702,7 +885,7 @@ function SceneContents({
       )}
 
       <Ground dark={dark} horizon={light.sky} land={light.bounce} nightness={light.nightness} />
-      <Plaza dark={dark} />
+      <Plaza dark={dark} calm={reducedMotion} />
       <BedPlinths dark={dark} />
       <GrassTufts count={detail === 'low' ? 1100 : 2400} dark={dark} />
       <BedUndergrowth dark={dark} perBed={detail === 'low' ? 26 : 44} />
@@ -749,8 +932,15 @@ function SceneContents({
                     }
               }
             />
+            {/* The label sits on the plant's real crown, not its nominal
+                height — the two are far enough apart on a tree to leave it
+                hanging in clear sky above the canopy. */}
             {(hoveredId === plant.id || selectedId === plant.id) && (
-              <Html position={[0, plant.model.height * scale + 0.22, 0]} center zIndexRange={[15, 0]}>
+              <Html
+                position={[0, plantTopY(plant.id, plant.model, detail) * scale + 0.22, 0]}
+                center
+                zIndexRange={[15, 0]}
+              >
                 <span
                   className="pointer-events-none -translate-y-2 rounded-full px-2.5 py-1 text-[12px] font-medium whitespace-nowrap text-white shadow-lg"
                   style={{ background: plant.accent }}

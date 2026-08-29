@@ -2,7 +2,7 @@ import { useId, useMemo, useState } from 'react'
 import { motion } from 'motion/react'
 import { plants } from '../../data/plants'
 import { REGION_POINTS, type RegionPoint } from '../../lib/ayurveda'
-import { INDIA_VIEWBOX, ISLANDS, MAINLAND, pathFor, project } from '../../lib/indiaOutline'
+import { INDIA_VIEWBOX, ISLANDS, MAINLAND, VIEW, pathFor, project } from '../../lib/indiaOutline'
 import type { Plant, RegionTag } from '../../types/plant'
 
 /* ------------------------------------------------------------------ *
@@ -55,18 +55,49 @@ function useRegionData(): { regions: RegionDatum[]; panIndia: Plant[] } {
   }, [])
 }
 
-/** Hangs a caption off whichever side of the circle points away from the middle. */
+/* Captions are drawn at 10px in the UI face; 0.56em a character is a
+ * slight over-estimate of its average advance, which is the side to err
+ * on when the number is used to keep text inside the frame. */
+const CAPTION_EM = 5.6
+/** Breathing room between a caption and the edge of the viewBox. */
+const EDGE_PAD = 4
+
+const captionWidth = (label: string) => label.length * CAPTION_EM
+
+/**
+ * Hangs a caption off whichever side of the circle points away from the
+ * middle — then makes sure the result is actually on the map.
+ *
+ * The outward side is the right instinct (it keeps captions off their
+ * neighbours) but it is blind to the frame: a marker near the west or
+ * east coast can hang a long caption clean off the edge, where the SVG
+ * clips it mid-word. So a side-hung caption that would overflow flips to
+ * the other side of its own circle, and a centred one is nudged back
+ * inside. Either way the caption stays with the circle it names.
+ */
 function labelPlacement(d: RegionDatum, r: number) {
   const gap = r + 7
-  switch (d.side) {
+  const w = captionWidth(d.label)
+  let side = d.side
+
+  if (side === 'left' && d.x - gap - w < EDGE_PAD) side = 'right'
+  else if (side === 'right' && d.x + gap + w > VIEW.width - EDGE_PAD) side = 'left'
+
+  switch (side) {
     case 'left':
       return { x: d.x - gap, y: d.y + 3.5, textAnchor: 'end' as const }
     case 'right':
       return { x: d.x + gap, y: d.y + 3.5, textAnchor: 'start' as const }
-    case 'above':
-      return { x: d.x, y: d.y - gap, textAnchor: 'middle' as const }
-    default:
-      return { x: d.x, y: d.y + gap + 6, textAnchor: 'middle' as const }
+    default: {
+      // Centred above or below, clamped so neither end leaves the frame.
+      const half = w / 2
+      const x = Math.min(Math.max(d.x, EDGE_PAD + half), VIEW.width - EDGE_PAD - half)
+      return {
+        x,
+        y: side === 'above' ? d.y - gap : d.y + gap + 6,
+        textAnchor: 'middle' as const,
+      }
+    }
   }
 }
 

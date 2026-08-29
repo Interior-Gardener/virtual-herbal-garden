@@ -18,7 +18,7 @@ export const INDIA_EXTENT = { west: 68.17, east: 97.4, south: 6.75, north: 37.1 
 const PARALLEL = Math.cos((23.5 * Math.PI) / 180)
 
 const MARGIN = 12
-const VIEW = { width: 420, height: 480 }
+export const VIEW = { width: 420, height: 480 }
 const SPAN_X = (INDIA_EXTENT.east - INDIA_EXTENT.west) * PARALLEL
 const SPAN_Y = INDIA_EXTENT.north - INDIA_EXTENT.south
 const SCALE = Math.min((VIEW.width - MARGIN * 2) / SPAN_X, (VIEW.height - MARGIN * 2) / SPAN_Y)
