@@ -321,3 +321,12 @@ dangerous when self-prescribed. Consult a registered AYUSH practitioner.
 - The India in the Atlas is a **schematic**, drawn by hand to place the climatic regions
   in roughly the right relationship to each other. It is labelled as such on the page. It
   is not survey data and should not be read as a statement about boundaries.
+
+Open to contributions
+contact
+tushar.surti@somaiya.edu (Lead Developer)
+
+Contributors
+kanav.t@somaiya.edu
+kushal.soni@somaiya.edu
+kartik.verma@somaiya.edu
